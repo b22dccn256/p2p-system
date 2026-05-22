@@ -85,6 +85,7 @@ class TCPHandler {
         socket.on('error', () => {
             if (currentPeerId) {
                 this.activeConnections.delete(currentPeerId);
+                this.peer.onPeerDisconnect(currentPeerId);
             }
         });
     }

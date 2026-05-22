@@ -6,24 +6,21 @@ class DirectChat {
         this.peer = peer;
     }
 
-    // Target 1: Gửi tin nhắn trực tiếp giữa 2 peer
-    send(targetPeerId, text) {
-        const socket = this.peer.tcpHandler.activeConnections.get(targetPeerId);
-
-        if (!socket) {
-            console.log(`[ERROR] Không thể gửi! Peer ${targetPeerId} không online hoặc chưa kết nối.`);
-            // logger.error(`Không thể gửi! Peer ${targetPeerId} không online hoặc chưa kết nối.`);
-            return false;
-        }
-
+    // Target 1: Gửi tin nhắn trực tiếp giữa 2 peer (Sử dụng Message Queue)
+    async send(targetPeerId, text) {
         const message = {
             type: 'DIRECT_CHAT',
             from: this.peer.id,
             payload: { text }
         };
 
-        socket.write(JSON.stringify(message) + '\n');
-        return true;
+        try {
+            await this.peer.messageQueue.sendWithAck(targetPeerId, message);
+            return true;
+        } catch (err) {
+            // Lỗi đã được xử lý log bên trong MessageQueue
+            return false;
+        }
     }
 
     // Target 2: Nhận tin nhắn và hiển thị ra console

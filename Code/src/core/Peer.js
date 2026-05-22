@@ -4,8 +4,9 @@ const TCPHandler = require('../network/TCPHandler');
 const UDPHandler = require('../network/UDPHandler');
 const DirectChat = require('../chat/DirectChat');
 const GroupChat = require('../chat/GroupChat');
+const MessageQueue = require('../chat/MessageQueue');
 const logger = require('../config/logger');
-const { BOOTSTRAP_IP, BOOTSTRAP_PORT } = require('../config/constants');
+const { BOOTSTRAP_IP, BOOTSTRAP_PORT, HEARTBEAT_INTERVAL, HEARTBEAT_TIMEOUT } = require('../config/constants');
 
 class Peer {
     constructor(id) {
@@ -14,8 +15,14 @@ class Peer {
         this.tcpHandler = new TCPHandler(this, this.tcpPort);
         this.udpHandler = new UDPHandler(this);
         this.knownPeers = new Set(); // Chống trùng lặp
+        this.peerTimestamps = new Map(); // Lưu thời gian tương tác cuối cùng
+        
+        this.messageQueue = new MessageQueue(this);
         this.directChat = new DirectChat(this);
         this.groupChat = new GroupChat(this);
+        
+        this.heartbeatTimer = null;
+        this.staleCheckTimer = null;
     }
 
     async start() {
@@ -28,6 +35,10 @@ class Peer {
 
         // 3. Kết nối Bootstrap Server (để tìm bạn trên WAN)
         this.connectToBootstrap();
+
+        // 4. Khởi động Heartbeat
+        this.startHeartbeat();
+        this.startCheckStalePeers();
     }
 
     connectToBootstrap() {
@@ -60,6 +71,7 @@ class Peer {
     onPeerDiscovered(peerId, ip, port, source) {
         if (!this.knownPeers.has(peerId)) {
             this.knownPeers.add(peerId);
+            this.peerTimestamps.set(peerId, Date.now());
             logger.discover(peerId, ip, port); // Target 5: Log "🔍 Discovered peer: xxx"
 
             // Tiến hành kết nối TCP P2P
@@ -69,8 +81,20 @@ class Peer {
 
     // Hàm hứng tin nhắn từ TCPHandler đẩy lên
     handleIncomingMessage(msg, socketPeerId) {
+        if (socketPeerId) {
+            this.peerTimestamps.set(socketPeerId, Date.now()); // Cập nhật lastSeen cho mọi tin nhắn
+        }
+
         switch (msg.type) {
             case 'DIRECT_CHAT':
+                // Gửi ACK lại cho người gửi
+                if (msg.seq !== undefined && msg.from) {
+                    this.tcpHandler.activeConnections.get(msg.from)?.write(JSON.stringify({
+                        type: 'ACK',
+                        from: this.id,
+                        seq: msg.seq
+                    }) + '\n');
+                }
                 this.directChat.onMessageReceived(msg);
                 break;
             case 'GROUP_CHAT':
@@ -79,15 +103,63 @@ class Peer {
             case 'ROOM_JOIN':
                 this.groupChat.onPeerJoinedRoom(msg.from, msg.payload.roomId);
                 break;
+            case 'PING':
+                if (msg.from) {
+                    this.tcpHandler.activeConnections.get(msg.from)?.write(JSON.stringify({
+                        type: 'PONG',
+                        from: this.id
+                    }) + '\n');
+                }
+                break;
+            case 'PONG':
+                // Đã cập nhật timestamp ở đầu hàm
+                break;
+            case 'ACK':
+                if (msg.seq !== undefined) {
+                    this.messageQueue.onAck(msg.seq);
+                }
+                break;
         }
+    }
+
+    // Gửi PING định kỳ
+    startHeartbeat() {
+        this.heartbeatTimer = setInterval(() => {
+            const pingMsg = JSON.stringify({ type: 'PING', from: this.id }) + '\n';
+            for (const [peerId, socket] of this.tcpHandler.activeConnections.entries()) {
+                socket.write(pingMsg);
+            }
+        }, HEARTBEAT_INTERVAL);
+    }
+
+    // Quét peer mất kết nối định kỳ
+    startCheckStalePeers() {
+        this.staleCheckTimer = setInterval(() => {
+            const now = Date.now();
+            for (const [peerId, lastSeen] of this.peerTimestamps.entries()) {
+                if (now - lastSeen > HEARTBEAT_TIMEOUT) {
+                    this.onPeerDisconnect(peerId);
+                }
+            }
+        }, 5000); // Quét mỗi 5 giây
     }
 
     // Target 5: Xử lý khi Peer mất kết nối
     onPeerDisconnect(peerId) {
         if (this.knownPeers.has(peerId)) {
             this.knownPeers.delete(peerId);
+            this.peerTimestamps.delete(peerId);
             this.groupChat.removePeerFromAllRooms(peerId); // Cập nhật trạng thái
-            logger.warn(`❌ Peer rời mạng (Offline): ${peerId}`); // Notify ra CLI
+            this.messageQueue.onPeerDisconnect(peerId); // Báo cho Queue hủy tin chưa gửi
+            
+            // Xóa socket nếu còn
+            const socket = this.tcpHandler.activeConnections.get(peerId);
+            if (socket) {
+                socket.destroy();
+                this.tcpHandler.activeConnections.delete(peerId);
+            }
+
+            logger.warn(`❌ Peer rời mạng (Offline/Timeout): ${peerId}`); // Notify ra CLI
         }
     }
 }

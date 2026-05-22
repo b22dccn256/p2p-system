@@ -19,7 +19,7 @@ async function start() {
 
     rl.prompt();
 
-    rl.on('line', (line) => {
+    rl.on('line', async (line) => {
         const parts = line.trim().split(' ');
         const cmd = parts[0];
 
@@ -28,8 +28,9 @@ async function start() {
                 // Lệnh: /dm peer_123 Hello world
                 const target = parts[1];
                 const text = parts.slice(2).join(' ');
-                if (node.directChat.send(target, text)) {
-                    console.log(`Đã gửi tới ${target}`);
+                const success = await node.directChat.send(target, text);
+                if (success) {
+                    logger.success(`Đã gửi tới ${target} thành công! (Nhận được ACK)`);
                 }
             }
             else if (cmd === '/join' && parts.length === 2) {
