@@ -119,6 +119,11 @@ class Peer {
                     this.messageQueue.onAck(msg.seq);
                 }
                 break;
+            case 'LEAVE':
+                if (msg.from) {
+                    this.onPeerDisconnect(msg.from);
+                }
+                break;
         }
     }
 

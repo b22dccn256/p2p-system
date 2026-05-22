@@ -17,6 +17,24 @@ async function start() {
         prompt: '> '
     });
 
+    // Xử lý Graceful Shutdown (Tắt ứng dụng an toàn bằng Ctrl+C)
+    process.on('SIGINT', () => {
+        logger.warn('\n🛑 Đang ngắt kết nối an toàn (Graceful Shutdown)...');
+        const leaveMsg = JSON.stringify({ type: 'LEAVE', from: node.id }) + '\n';
+        
+        // Gửi tin nhắn chào tạm biệt tới tất cả bạn bè
+        for (const socket of node.tcpHandler.activeConnections.values()) {
+            socket.write(leaveMsg);
+            socket.end(); // Gửi gói tin TCP FIN một cách lịch sự
+        }
+        
+        // Đợi 500ms cho tin nhắn kịp bay đi trước khi tắt hẳn
+        setTimeout(() => {
+            logger.success('Đã tắt hệ thống!');
+            process.exit(0);
+        }, 500);
+    });
+
     rl.prompt();
 
     rl.on('line', async (line) => {
