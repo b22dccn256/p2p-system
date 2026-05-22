@@ -61,6 +61,12 @@ async function start() {
                 const text = parts.slice(2).join(' ');
                 node.groupChat.broadcast(room, text);
             }
+            else if (cmd === '/freeze' && parts.length === 2) {
+                // Lệnh: /freeze peer_123
+                const target = parts[1];
+                node.frozenPeers.add(target);
+                logger.warn(`✂️ Đã cắt dây cáp mạng ảo tới ${target}. Bạn hãy chờ đúng 10s xem bộ đếm Nhịp tim có nhảy ra không nhé!`);
+            }
             else {
                 logger.warn('Lệnh không hợp lệ!');
             }

@@ -16,6 +16,7 @@ class Peer {
         this.udpHandler = new UDPHandler(this);
         this.knownPeers = new Set(); // Chống trùng lặp
         this.peerTimestamps = new Map(); // Lưu thời gian tương tác cuối cùng
+        this.frozenPeers = new Set(); // Dùng để test giả lập đứt cáp mạng
         
         this.messageQueue = new MessageQueue(this);
         this.directChat = new DirectChat(this);
@@ -81,8 +82,19 @@ class Peer {
 
     // Hàm hứng tin nhắn từ TCPHandler đẩy lên
     handleIncomingMessage(msg, socketPeerId) {
+        // Giả lập rớt mạng vật lý: Bơ luôn tin nhắn (kể cả PING), không thèm đọc
+        if (this.frozenPeers.has(socketPeerId) || this.frozenPeers.has(msg.from)) {
+            return; 
+        }
+
         if (socketPeerId) {
             this.peerTimestamps.set(socketPeerId, Date.now()); // Cập nhật lastSeen cho mọi tin nhắn
+            
+            // Fix bug: Nếu người này tự kết nối tới mình (ẩn danh) mà UDP/Bootstrap chưa kịp báo
+            if (!this.knownPeers.has(socketPeerId)) {
+                this.knownPeers.add(socketPeerId);
+                logger.discover(socketPeerId, "TCP_Handshake", "Auto");
+            }
         }
 
         switch (msg.type) {
@@ -141,8 +153,14 @@ class Peer {
     startCheckStalePeers() {
         this.staleCheckTimer = setInterval(() => {
             const now = Date.now();
+            // Lấy danh sách để in log debug
+            const peerIds = Array.from(this.peerTimestamps.keys());
+            // logger.info(`[DEBUG] Đang quét nhịp tim của ${peerIds.length} người... (${peerIds.join(', ')})`);
+
             for (const [peerId, lastSeen] of this.peerTimestamps.entries()) {
-                if (now - lastSeen > HEARTBEAT_TIMEOUT) {
+                const idleTime = now - lastSeen;
+                if (idleTime > HEARTBEAT_TIMEOUT) {
+                    logger.warn(`[DEBUG] Phát hiện timeout cho ${peerId}! Idle: ${idleTime}ms`);
                     this.onPeerDisconnect(peerId);
                 }
             }
