@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>P2P Decentralized Chat</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Far Left Navigation Sidebar -->
+        <nav class="nav-sidebar">
+            <div class="nav-top">
+                <div class="nav-logo"><i class="fa-solid fa-layer-group"></i></div>
+                <div class="nav-item"><i class="fa-solid fa-house"></i></div>
+                <div class="nav-item"><i class="fa-solid fa-briefcase"></i></div>
+                <div class="nav-item"><i class="fa-solid fa-gear"></i></div>
+                <div class="nav-item active"><i class="fa-solid fa-comment-dots"></i></div>
+                <div class="nav-item"><i class="fa-regular fa-calendar"></i></div>
+            </div>
+            <div class="nav-bottom">
+                <div class="nav-item"><i class="fa-regular fa-circle-question"></i></div>
+                <div class="nav-item"><i class="fa-solid fa-gear"></i></div>
+                <img src="https://i.pravatar.cc/150?img=11" alt="Profile" class="profile-pic">
+            </div>
+        </nav>
+
+        <!-- Left Panel: Chat List -->
+        <aside class="chat-list-panel">
+            <div class="panel-header">
+                <div class="user-profile">
+                    <img src="https://i.pravatar.cc/150?img=11" alt="Akhilesh" class="avatar">
+                    <span class="user-name">Akhilesh</span>
+                </div>
+                <button class="icon-btn"><i class="fa-solid fa-gear"></i></button>
+            </div>
+
+            <div class="room-actions">
+                <button class="btn btn-primary"><i class="fa-solid fa-plus"></i> New Room</button>
+                <button class="btn btn-secondary">Join Room</button>
+            </div>
+
+            <div class="search-box">
+                <i class="fa-solid fa-search"></i>
+                <input type="text" placeholder="Search rooms...">
+            </div>
+
+            <div class="chat-items-container">
+                <!-- Chat items will be rendered here -->
+            </div>
+        </aside>
+
+        <!-- Main Chat Area -->
+        <main class="main-chat">
+            <header class="chat-header">
+                <div class="chat-header-left">
+                    <img src="" alt="Avatar" class="avatar" style="display: none;">
+                    <div class="chat-title-info">
+                        <h2></h2>
+                        <span class="peer-count"></span>
+                    </div>
+                </div>
+                <div class="chat-header-right">
+                    <button class="btn btn-danger">Disconnect</button>
+                    <button class="icon-btn"><i class="fa-solid fa-search"></i></button>
+                </div>
+            </header>
+
+            <div class="chat-history">
+                <!-- Messages will be rendered here -->
+            </div>
+
+            <!-- Input Area -->
+            <div class="chat-input-container">
+                <div class="input-actions">
+                    <button class="icon-btn"><i class="fa-solid fa-plus"></i></button>
+                </div>
+                <input type="text" class="chat-input" placeholder="Type a message...">
+                <button class="icon-btn emoji-btn"><i class="fa-regular fa-face-smile"></i></button>
+                <button class="icon-btn send-btn"><i class="fa-solid fa-paper-plane"></i></button>
+            </div>
+        </main>
+
+        <!-- Right Panel: Room Details -->
+        <aside class="right-panel">
+            <header class="right-header">
+                <h2>Room Details</h2>
+                <button class="icon-btn close-panel"><i class="fa-solid fa-xmark"></i></button>
+            </header>
+
+            <div class="info-section">
+                <h3>Recent Links</h3>
+                <div class="links-container">
+                    <!-- Links will be rendered here -->
+                </div>
+            </div>
+
+            <div class="info-section">
+                <h3>Room Members</h3>
+                <div class="member-list">
+                    <!-- Members will be rendered here -->
+                </div>
+            </div>
+        </aside>
+
+        <!-- Network Status Floating Bar -->
+        <div class="network-status-bar">
+            <div class="status-content">
+                <strong>Network Status Bar</strong>
+                <span id="network-status-text">Chưa kết nối...</span>
+            </div>
+        </div>
+    </div>
+    <script src="../lib/avatar.min.js"></script>
+    <script src="renderer.js"></script>
+</body>
+
+</html>

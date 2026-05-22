@@ -21,13 +21,13 @@ async function start() {
     process.on('SIGINT', () => {
         logger.warn('\n🛑 Đang ngắt kết nối an toàn (Graceful Shutdown)...');
         const leaveMsg = JSON.stringify({ type: 'LEAVE', from: node.id }) + '\n';
-        
+
         // Gửi tin nhắn chào tạm biệt tới tất cả bạn bè
         for (const socket of node.tcpHandler.activeConnections.values()) {
             socket.write(leaveMsg);
             socket.end(); // Gửi gói tin TCP FIN một cách lịch sự
         }
-        
+
         // Đợi 500ms cho tin nhắn kịp bay đi trước khi tắt hẳn
         setTimeout(() => {
             logger.success('Đã tắt hệ thống!');
