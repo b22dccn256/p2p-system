@@ -1,5 +1,6 @@
 // src/core/Peer.js
 const net = require('net');
+const { EventEmitter } = require('events');
 const TCPHandler = require('../network/TCPHandler');
 const UDPHandler = require('../network/UDPHandler');
 const DirectChat = require('../chat/DirectChat');
@@ -8,8 +9,9 @@ const MessageQueue = require('../chat/MessageQueue');
 const logger = require('../config/logger');
 const { BOOTSTRAP_IP, BOOTSTRAP_PORT, HEARTBEAT_INTERVAL, HEARTBEAT_TIMEOUT } = require('../config/constants');
 
-class Peer {
+class Peer extends EventEmitter {
     constructor(id) {
+        super();
         this.id = id;
         this.tcpPort = 0; // 0 để OS tự cấp port rảnh
         this.tcpHandler = new TCPHandler(this, this.tcpPort);
@@ -76,8 +78,26 @@ class Peer {
             this.peerTimestamps.set(peerId, Date.now());
             logger.discover(peerId, ip, port); // Target 5: Log "🔍 Discovered peer: xxx"
 
+            this.emit('peer-discovered', { peerId, ip, port, source }); // Báo lên UI
+
             // Tiến hành kết nối TCP P2P
             this.tcpHandler.connectToPeer(peerId, ip, port);
+        }
+    }
+
+    onConnectionEstablished(peerId) {
+        // Khi có kết nối mới, đồng bộ trạng thái phòng chat
+        for (const [roomId, members] of this.groupChat.rooms.entries()) {
+            if (members.has(this.id)) {
+                const socket = this.tcpHandler.activeConnections.get(peerId);
+                if (socket) {
+                    socket.write(JSON.stringify({
+                        type: 'ROOM_JOIN',
+                        from: this.id,
+                        payload: { roomId }
+                    }) + '\n');
+                }
+            }
         }
     }
 
@@ -95,7 +115,13 @@ class Peer {
             if (!this.knownPeers.has(socketPeerId)) {
                 this.knownPeers.add(socketPeerId);
                 logger.discover(socketPeerId, "TCP_Handshake", "Auto");
+                this.emit('peer-discovered', { peerId: socketPeerId, source: 'TCP_Handshake' });
             }
+        }
+
+        // Báo cho UI mọi tin nhắn ngoại trừ PING/PONG nội bộ (tuỳ yêu cầu)
+        if (msg.type !== 'PING' && msg.type !== 'PONG' && msg.type !== 'ACK') {
+            this.emit('message', msg);
         }
 
         switch (msg.type) {
@@ -133,6 +159,7 @@ class Peer {
             case 'ACK':
                 if (msg.seq !== undefined) {
                     this.messageQueue.onAck(msg.seq);
+                    this.emit('message-ack', { seq: msg.seq, from: msg.from }); // Báo cho UI để chuyển ✔️✔️
                 }
                 break;
             case 'LEAVE':
@@ -189,6 +216,7 @@ class Peer {
             }
 
             logger.warn(`❌ Peer rời mạng (Offline/Timeout): ${peerId}`); // Notify ra CLI
+            this.emit('peer-disconnected', peerId); // Báo lên UI
         }
     }
 }

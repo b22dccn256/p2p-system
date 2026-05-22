@@ -36,6 +36,7 @@ class TCPHandler {
             logger.connect(peerId);
             // QUAN TRỌNG: Gắn tai nghe cho socket đi
             this._setupSocketEvents(socket, peerId);
+            this.peer.onConnectionEstablished(peerId);
         });
 
         socket.on('error', () => {
@@ -65,7 +66,7 @@ class TCPHandler {
                     if (!currentPeerId && msg.from) {
                         currentPeerId = msg.from;
                         this.activeConnections.set(currentPeerId, socket);
-                        // logger.info(`Đã ánh xạ kết nối ẩn danh thành: ${currentPeerId}`);
+                        this.peer.onConnectionEstablished(currentPeerId);
                     }
 
                     this.peer.handleIncomingMessage(msg, currentPeerId);
