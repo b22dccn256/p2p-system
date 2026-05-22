@@ -2,6 +2,8 @@
 const net = require('net');
 const TCPHandler = require('../network/TCPHandler');
 const UDPHandler = require('../network/UDPHandler');
+const DirectChat = require('../chat/DirectChat');
+const GroupChat = require('../chat/GroupChat');
 const logger = require('../config/logger');
 const { BOOTSTRAP_IP, BOOTSTRAP_PORT } = require('../config/constants');
 
@@ -12,6 +14,8 @@ class Peer {
         this.tcpHandler = new TCPHandler(this, this.tcpPort);
         this.udpHandler = new UDPHandler(this);
         this.knownPeers = new Set(); // Chống trùng lặp
+        this.directChat = new DirectChat(this);
+        this.groupChat = new GroupChat(this);
     }
 
     async start() {
@@ -60,6 +64,30 @@ class Peer {
 
             // Tiến hành kết nối TCP P2P
             this.tcpHandler.connectToPeer(peerId, ip, port);
+        }
+    }
+
+    // Hàm hứng tin nhắn từ TCPHandler đẩy lên
+    handleIncomingMessage(msg, socketPeerId) {
+        switch (msg.type) {
+            case 'DIRECT_CHAT':
+                this.directChat.onMessageReceived(msg);
+                break;
+            case 'GROUP_CHAT':
+                this.groupChat.onMessageReceived(msg);
+                break;
+            case 'ROOM_JOIN':
+                this.groupChat.onPeerJoinedRoom(msg.from, msg.payload.roomId);
+                break;
+        }
+    }
+
+    // Target 5: Xử lý khi Peer mất kết nối
+    onPeerDisconnect(peerId) {
+        if (this.knownPeers.has(peerId)) {
+            this.knownPeers.delete(peerId);
+            this.groupChat.removePeerFromAllRooms(peerId); // Cập nhật trạng thái
+            logger.warn(`❌ Peer rời mạng (Offline): ${peerId}`); // Notify ra CLI
         }
     }
 }
