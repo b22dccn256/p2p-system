@@ -24,6 +24,36 @@ class GroupChat {
         });
     }
 
+    // Rời khỏi room
+    leaveRoom(roomId) {
+        const room = this.rooms.get(roomId);
+        if (!room || !room.has(this.peer.id)) {
+            logger.error(`Bạn chưa tham gia room ${roomId}!`);
+            return;
+        }
+
+        room.delete(this.peer.id);
+        if (room.size === 0) this.rooms.delete(roomId);
+
+        logger.success(`Đã rời room: ${roomId}`);
+
+        // Báo cho mọi người biết mình đã rời
+        this._broadcastToNetwork({
+            type: 'ROOM_LEAVE',
+            from: this.peer.id,
+            payload: { roomId }
+        });
+    }
+
+    // Xử lý khi một peer khác rời room
+    onPeerLeftRoom(peerId, roomId) {
+        const room = this.rooms.get(roomId);
+        if (room) {
+            room.delete(peerId);
+            logger.warn(`👋 ${peerId} đã rời room ${roomId}`);
+        }
+    }
+
     // Xử lý khi một peer khác báo họ vừa vào room
     onPeerJoinedRoom(peerId, roomId) {
         if (!this.rooms.has(roomId)) {

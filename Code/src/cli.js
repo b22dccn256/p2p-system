@@ -19,6 +19,7 @@ async function start() {
 
     // Xử lý Graceful Shutdown (Tắt ứng dụng an toàn bằng Ctrl+C)
     process.on('SIGINT', () => {
+        node.isShuttingDown = true; // Báo cho hệ thống biết mình đang tắt
         logger.warn('\n🛑 Đang ngắt kết nối an toàn (Graceful Shutdown)...');
         const leaveMsg = JSON.stringify({ type: 'LEAVE', from: node.id }) + '\n';
         
@@ -61,14 +62,47 @@ async function start() {
                 const text = parts.slice(2).join(' ');
                 node.groupChat.broadcast(room, text);
             }
+            else if (cmd === '/leave' && parts.length === 2) {
+                // Lệnh: /leave room_game
+                node.groupChat.leaveRoom(parts[1]);
+            }
+            else if (cmd === '/exit') {
+                // Lệnh: /exit (Tương đương Ctrl+C nhưng gõ bằng tay)
+                process.emit('SIGINT');
+                return;
+            }
+            else if (cmd === '/users') {
+                // Lệnh: /users (Xem ai đang online)
+                const peers = Array.from(node.knownPeers);
+                if (peers.length === 0) {
+                    logger.warn('Không có ai online.');
+                } else {
+                    logger.info(`👥 Đang online (${peers.length} người): ${peers.join(', ')}`);
+                }
+            }
             else if (cmd === '/freeze' && parts.length === 2) {
-                // Lệnh: /freeze peer_123
+                // Lệnh: /freeze peer_123 (Test giả lập đứt cáp mạng)
                 const target = parts[1];
                 node.frozenPeers.add(target);
-                logger.warn(`✂️ Đã cắt dây cáp mạng ảo tới ${target}. Bạn hãy chờ đúng 10s xem bộ đếm Nhịp tim có nhảy ra không nhé!`);
+                logger.warn(`✂️ Đã cắt dây cáp mạng ảo tới ${target}. Chờ 10s xem Heartbeat...`);
+            }
+            else if (cmd === '/help') {
+                console.log(`
+╔══════════════════════════════════════════════════╗
+║              📖 DANH SÁCH LỆNH                  ║
+╠══════════════════════════════════════════════════╣
+║  /dm <peerId> <msg>   Gửi tin nhắn riêng        ║
+║  /join <roomId>       Tham gia phòng chat        ║
+║  /leave <roomId>      Rời khỏi phòng chat        ║
+║  /room <roomId> <msg> Gửi tin vào phòng          ║
+║  /users               Xem ai đang online         ║
+║  /exit                Thoát ứng dụng             ║
+║  /freeze <peerId>     [Test] Giả lập đứt mạng   ║
+╚══════════════════════════════════════════════════╝
+                `);
             }
             else {
-                logger.warn('Lệnh không hợp lệ!');
+                logger.warn('Lệnh không hợp lệ! Gõ /help để xem danh sách lệnh.');
             }
         } catch (err) {
             logger.error(err.message);

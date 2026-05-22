@@ -17,6 +17,7 @@ class Peer {
         this.knownPeers = new Set(); // Chống trùng lặp
         this.peerTimestamps = new Map(); // Lưu thời gian tương tác cuối cùng
         this.frozenPeers = new Set(); // Dùng để test giả lập đứt cáp mạng
+        this.isShuttingDown = false; // Cờ báo hiệu đang tắt máy
         
         this.messageQueue = new MessageQueue(this);
         this.directChat = new DirectChat(this);
@@ -115,6 +116,9 @@ class Peer {
             case 'ROOM_JOIN':
                 this.groupChat.onPeerJoinedRoom(msg.from, msg.payload.roomId);
                 break;
+            case 'ROOM_LEAVE':
+                this.groupChat.onPeerLeftRoom(msg.from, msg.payload.roomId);
+                break;
             case 'PING':
                 if (msg.from) {
                     this.tcpHandler.activeConnections.get(msg.from)?.write(JSON.stringify({
@@ -169,6 +173,8 @@ class Peer {
 
     // Target 5: Xử lý khi Peer mất kết nối
     onPeerDisconnect(peerId) {
+        if (this.isShuttingDown) return; // Đang tắt máy thì bỏ qua, không cần in log
+
         if (this.knownPeers.has(peerId)) {
             this.knownPeers.delete(peerId);
             this.peerTimestamps.delete(peerId);
