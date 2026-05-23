@@ -6,6 +6,8 @@ contextBridge.exposeInMainWorld('p2pAPI', {
     joinRoom: (roomId) => ipcRenderer.invoke('join-room', roomId),
     sendRoom: (roomId, msg) => ipcRenderer.invoke('send-room', roomId, msg),
     getUsers: () => ipcRenderer.invoke('get-users'),
+    getRoomMembers: (roomId) => ipcRenderer.invoke('get-room-members', roomId),
+    disconnect: () => ipcRenderer.invoke('disconnect'),
 
     // Nhận dữ liệu từ Main Process
     onPeerDiscovered: (callback) => ipcRenderer.on('peer-discovered', (event, data) => callback(data)),

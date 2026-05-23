@@ -40,13 +40,13 @@
             </div>
 
             <div class="room-actions">
-                <button class="btn btn-primary"><i class="fa-solid fa-plus"></i> New Room</button>
-                <button class="btn btn-secondary">Join Room</button>
+                <button class="btn btn-primary btn-new-room"><i class="fa-solid fa-plus"></i> New Room</button>
+                <button class="btn btn-secondary btn-join-room"><i class="fa-solid fa-right-to-bracket"></i> Join</button>
             </div>
 
             <div class="search-box">
                 <i class="fa-solid fa-search"></i>
-                <input type="text" placeholder="Search rooms...">
+                <input type="text" placeholder="Tìm kiếm phòng, người dùng...">
             </div>
 
             <div class="chat-items-container">
@@ -65,8 +65,7 @@
                     </div>
                 </div>
                 <div class="chat-header-right">
-                    <button class="btn btn-danger">Disconnect</button>
-                    <button class="icon-btn"><i class="fa-solid fa-search"></i></button>
+                    <button class="btn btn-danger btn-disconnect"><i class="fa-solid fa-power-off"></i> Disconnect</button>
                 </div>
             </header>
 
@@ -76,11 +75,13 @@
 
             <!-- Input Area -->
             <div class="chat-input-container">
-                <div class="input-actions">
-                    <button class="icon-btn"><i class="fa-solid fa-plus"></i></button>
+                <input type="text" class="chat-input" placeholder="Nhập tin nhắn...">
+                <div class="emoji-wrapper">
+                    <button class="icon-btn emoji-btn"><i class="fa-regular fa-face-smile"></i></button>
+                    <div id="emoji-panel" class="emoji-panel" style="display:none;">
+                        <!-- Emoji sẽ được load bởi renderer.js -->
+                    </div>
                 </div>
-                <input type="text" class="chat-input" placeholder="Type a message...">
-                <button class="icon-btn emoji-btn"><i class="fa-regular fa-face-smile"></i></button>
                 <button class="icon-btn send-btn"><i class="fa-solid fa-paper-plane"></i></button>
             </div>
         </main>
@@ -88,21 +89,14 @@
         <!-- Right Panel: Room Details -->
         <aside class="right-panel">
             <header class="right-header">
-                <h2>Room Details</h2>
+                <h2>Chi tiết phòng</h2>
                 <button class="icon-btn close-panel"><i class="fa-solid fa-xmark"></i></button>
             </header>
 
             <div class="info-section">
-                <h3>Recent Links</h3>
-                <div class="links-container">
-                    <!-- Links will be rendered here -->
-                </div>
-            </div>
-
-            <div class="info-section">
-                <h3>Room Members</h3>
+                <h3>Thành viên trong phòng</h3>
                 <div class="member-list">
-                    <!-- Members will be rendered here -->
+                    <!-- Members will be rendered dynamically by renderer.js -->
                 </div>
             </div>
         </aside>
@@ -115,6 +109,23 @@
             </div>
         </div>
     </div>
+    <!-- Custom Room Modal Dialog (Fix Electron prompt block) -->
+    <div id="room-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <header class="modal-header">
+                <h3 id="modal-title">Tham gia phòng chat</h3>
+                <button class="icon-btn close-modal-btn"><i class="fa-solid fa-xmark"></i></button>
+            </header>
+            <div class="modal-body">
+                <input type="text" id="modal-room-input" placeholder="Nhập tên phòng...">
+            </div>
+            <footer class="modal-footer">
+                <button class="btn btn-secondary cancel-modal-btn">Hủy</button>
+                <button class="btn btn-primary confirm-modal-btn">Xác nhận</button>
+            </footer>
+        </div>
+    </div>
+
     <script src="../lib/avatar.min.js"></script>
     <script src="renderer.js"></script>
 </body>

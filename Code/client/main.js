@@ -20,6 +20,9 @@ async function createWindow() {
 
     mainWindow.loadFile(path.join(__dirname, 'gui', 'index.html'));
     
+    // Mở DevTools để gỡ lỗi giao diện trực quan
+    mainWindow.webContents.openDevTools();
+    
     // Ngăn UI đóng ngay lập tức nếu chưa Graceful Shutdown
     mainWindow.on('close', (e) => {
         if (!isShuttingDown && node) {
@@ -115,7 +118,40 @@ ipcMain.handle('send-room', (event, roomId, text) => {
     node.groupChat.broadcast(roomId, text);
 });
 
+// Fix #8: Trả về thêm thông tin lastSeen cho mỗi peer
 ipcMain.handle('get-users', (event) => {
     if (!node) return [];
-    return Array.from(node.knownPeers);
+    return Array.from(node.knownPeers).map(peerId => ({
+        id: peerId,
+        lastSeen: node.peerTimestamps.get(peerId) || null
+    }));
+});
+
+// Fix #9: Lấy danh sách thành viên thực tế của một room
+ipcMain.handle('get-room-members', (event, roomId) => {
+    if (!node) return [];
+    const room = node.groupChat.rooms.get(roomId);
+    if (!room) return [];
+    return Array.from(room);
+});
+
+// Fix #3: Graceful Shutdown từ nút Disconnect trên UI
+ipcMain.handle('disconnect', () => {
+    if (!node || isShuttingDown) return;
+    isShuttingDown = true;
+    logger.warn('Graceful shutdown initiated from Disconnect button...');
+
+    node.isShuttingDown = true;
+    const leaveMsg = JSON.stringify({ type: 'LEAVE', from: node.id }) + '\n';
+    for (const socket of node.tcpHandler.activeConnections.values()) {
+        socket.write(leaveMsg);
+        socket.end();
+    }
+
+    setTimeout(() => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.destroy();
+        }
+        app.quit();
+    }, 300);
 });

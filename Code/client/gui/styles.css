@@ -567,6 +567,44 @@ body {
     background-color: rgba(59, 130, 246, 0.1);
 }
 
+/* Emoji Wrapper & Panel */
+.emoji-wrapper {
+    position: relative;
+}
+
+.emoji-panel {
+    position: absolute;
+    bottom: 50px;
+    right: 0;
+    width: 320px;
+    max-height: 240px;
+    overflow-y: auto;
+    background: white;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 12px;
+    box-shadow: var(--shadow-float);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    z-index: 200;
+    animation: slideUp 0.2s ease;
+}
+
+.emoji-item {
+    font-size: 22px;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 6px;
+    transition: background 0.15s;
+    user-select: none;
+}
+
+.emoji-item:hover {
+    background-color: rgba(59, 130, 246, 0.1);
+    transform: scale(1.2);
+}
+
 /* ================= RIGHT PANEL ================= */
 .right-panel {
     width: var(--sidebar-right-width);
@@ -690,6 +728,87 @@ body {
     font-size: 12px;
     color: #9ca3af;
 }
+
+/* ================= CUSTOM MODAL DIALOG ================= */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    animation: fadeInModal 0.2s ease;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 16px;
+    width: 400px;
+    max-width: 90%;
+    box-shadow: var(--shadow-float);
+    display: flex;
+    flex-direction: column;
+    animation: scaleUpModal 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    border: 1px solid var(--border-color);
+}
+
+.modal-header {
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-dark);
+}
+
+.modal-body {
+    padding: 24px;
+}
+
+.modal-body input {
+    width: 100%;
+    padding: 12px 16px;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    outline: none;
+    font-family: inherit;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.modal-body input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.modal-footer {
+    padding: 16px 24px;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+@keyframes fadeInModal {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes scaleUpModal {
+    from { transform: scale(0.95); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
 
 @keyframes slideUp {
     from {
