@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('p2pAPI', {
     sendDm: (peerId, msg) => ipcRenderer.invoke('send-dm', peerId, msg),
     joinRoom: (roomId) => ipcRenderer.invoke('join-room', roomId),
     sendRoom: (roomId, msg) => ipcRenderer.invoke('send-room', roomId, msg),
+    sendGlobal: (msg) => ipcRenderer.invoke('send-global', msg),
     getUsers: () => ipcRenderer.invoke('get-users'),
     getRoomMembers: (roomId) => ipcRenderer.invoke('get-room-members', roomId),
     disconnect: () => ipcRenderer.invoke('disconnect'),

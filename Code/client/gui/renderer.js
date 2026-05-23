@@ -15,7 +15,7 @@ const chatData = {};
 
 // Danh sách peers và phòng
 const knownPeers = new Set();
-const joinedRooms = new Set(['global_room']); 
+const joinedRooms = new Set(); 
 
 // Để hàm truy cập được từ HTML onclick
 window.switchChat = function(chatId, isGroup) {
@@ -53,8 +53,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const users = await window.p2pAPI.getUsers();
         users.forEach(u => knownPeers.add(u.id || u));
 
-        // Auto join phòng mặc định
-        window.joinRoom('global_room');
+        // Auto switch phòng mặc định
+        window.switchChat('NETWORK_BROADCAST', true);
     });
 
     // 2. Gửi tin nhắn
@@ -81,7 +81,10 @@ document.addEventListener('DOMContentLoaded', () => {
         soundSend.play().catch(e => console.log(e));
 
         // Gọi IPC
-        if (isGroupChat) {
+        if (currentActiveChat === 'NETWORK_BROADCAST') {
+            await window.p2pAPI.sendGlobal(msg);
+            updateMessageStatus(currentActiveChat, seq, 'sent');
+        } else if (isGroupChat) {
             await window.p2pAPI.sendRoom(currentActiveChat, msg);
             // Room chat hiện tại không có cơ chế ACK trong Peer.js, nên coi như gửi xong
             updateMessageStatus(currentActiveChat, seq, 'sent');
@@ -121,6 +124,8 @@ document.addEventListener('DOMContentLoaded', () => {
             chatId = msg.from;
         } else if (msg.type === 'GROUP_CHAT') {
             chatId = msg.payload.roomId;
+        } else if (msg.type === 'GLOBAL_CHAT') {
+            chatId = 'NETWORK_BROADCAST';
         } else if (msg.type === 'ROOM_JOIN' || msg.type === 'ROOM_LEAVE') {
             // Cập nhật right panel khi có người vào/rời phòng
             updateRightPanel();
@@ -356,6 +361,17 @@ function updateSidebar() {
     
     container.innerHTML = '';
     
+    // Render Network Broadcast channel
+    const isGlobalActive = currentActiveChat === 'NETWORK_BROADCAST' ? 'active' : '';
+    container.insertAdjacentHTML('beforeend', `
+        <div class="chat-item ${isGlobalActive}" onclick="window.switchChat('NETWORK_BROADCAST', true)" style="cursor:pointer; background-color: var(--hover-bg);">
+            <div class="chat-avatar" style="background:#f25858;color:white;display:flex;align-items:center;justify-content:center;border-radius:50%;width:40px;height:40px;"><i class="fa-solid fa-bullhorn"></i></div>
+            <div class="chat-info">
+                <div class="chat-name" style="font-weight: 600; color: #f25858;">📢 Phát thanh toàn mạng</div>
+            </div>
+        </div>
+    `);
+
     // Render Rooms
     joinedRooms.forEach(room => {
         const isActive = currentActiveChat === room ? 'active' : '';
@@ -405,6 +421,12 @@ async function updateRightPanel() {
 
     if (!currentActiveChat) {
         memberList.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">Chọn một phòng hoặc người để xem chi tiết</p>';
+        return;
+    }
+
+    if (currentActiveChat === 'NETWORK_BROADCAST') {
+        if (rightPanelTitle) rightPanelTitle.textContent = 'Phát thanh toàn mạng';
+        memberList.innerHTML = '<p style="color:var(--text-muted);font-size:13px;padding: 10px;">Tin nhắn trong kênh này sẽ được gửi tới tất cả người dùng đang kết nối trên mạng, không phân biệt phòng chat.</p>';
         return;
     }
 

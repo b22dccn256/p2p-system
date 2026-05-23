@@ -5,6 +5,7 @@ const TCPHandler = require('../network/TCPHandler');
 const UDPHandler = require('../network/UDPHandler');
 const DirectChat = require('../chat/DirectChat');
 const GroupChat = require('../chat/GroupChat');
+const GlobalChat = require('../chat/GlobalChat');
 const MessageQueue = require('../chat/MessageQueue');
 const logger = require('../config/logger');
 const { BOOTSTRAP_IP, BOOTSTRAP_PORT, HEARTBEAT_INTERVAL, HEARTBEAT_TIMEOUT } = require('../config/constants');
@@ -24,6 +25,7 @@ class Peer extends EventEmitter {
         this.messageQueue = new MessageQueue(this);
         this.directChat = new DirectChat(this);
         this.groupChat = new GroupChat(this);
+        this.globalChat = new GlobalChat(this);
         
         this.heartbeatTimer = null;
         this.staleCheckTimer = null;
@@ -138,6 +140,9 @@ class Peer extends EventEmitter {
                 break;
             case 'GROUP_CHAT':
                 this.groupChat.onMessageReceived(msg);
+                break;
+            case 'GLOBAL_CHAT':
+                this.globalChat.onMessageReceived(msg);
                 break;
             case 'ROOM_JOIN':
                 this.groupChat.onPeerJoinedRoom(msg.from, msg.payload.roomId);

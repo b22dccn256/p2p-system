@@ -118,6 +118,11 @@ ipcMain.handle('send-room', (event, roomId, text) => {
     node.groupChat.broadcast(roomId, text);
 });
 
+ipcMain.handle('send-global', (event, text) => {
+    if (!node) return;
+    node.globalChat.broadcast(text);
+});
+
 // Fix #8: Trả về thêm thông tin lastSeen cho mỗi peer
 ipcMain.handle('get-users', (event) => {
     if (!node) return [];
