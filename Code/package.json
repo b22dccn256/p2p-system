@@ -1,0 +1,16 @@
+{
+    "name": "bootstrap-server",
+    "version": "1.0.0",
+    "main": "server.js",
+    "type": "commonjs",
+    "scripts": {
+        "start": "node server.js",
+        "start:gui": "electron client/main.js"
+    },
+    "dependencies": {
+        "chalk": "^4.1.2"
+    },
+    "devDependencies": {
+        "electron": "^42.2.0"
+    }
+}
