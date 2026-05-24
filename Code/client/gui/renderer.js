@@ -233,6 +233,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.p2pAPI.onBootstrapStatus(updateBootstrapStatus);
 
+    window.p2pAPI.onSendError((data) => {
+        // Hiển thị thông báo lỗi (Toast/Alert)
+        alert(`Lỗi gửi tin nhắn:\n${data.reason}`);
+        
+        // Cập nhật trạng thái tin nhắn thành error trên giao diện (nếu đang ở màn hình chat đó)
+        // Lấy seq của tin nhắn cuối cùng (đang sending)
+        if (data.target && chatData[data.target]) {
+            const msgs = chatData[data.target];
+            if (msgs.length > 0 && msgs[msgs.length - 1].status === 'sending') {
+                updateMessageStatus(data.target, msgs[msgs.length - 1].seq, 'error');
+            }
+        } else if (data.target === 'broadcast' && chatData['NETWORK_BROADCAST']) {
+            const msgs = chatData['NETWORK_BROADCAST'];
+            if (msgs.length > 0 && msgs[msgs.length - 1].status === 'sending') {
+                updateMessageStatus('NETWORK_BROADCAST', msgs[msgs.length - 1].seq, 'error');
+            }
+        }
+    });
+
     // 4. Panel Đóng mở
     const closePanelBtn = document.querySelector('.close-panel');
     const rightPanel = document.querySelector('.right-panel');

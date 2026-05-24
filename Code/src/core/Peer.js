@@ -25,6 +25,7 @@ class Peer extends EventEmitter {
         this.peerSources = new Map();
         this.frozenPeers = new Set(); // Dùng để test giả lập đứt cáp mạng
         this.isShuttingDown = false; // Cờ báo hiệu đang tắt máy
+        this.isBootstrapAlive = false; // Trạng thái kết nối Bootstrap Server
         this.seenMessageIds = new Set();
         this.keyExchange = new KeyExchange(this);
         this.crypto = Crypto;
@@ -49,6 +50,11 @@ class Peer extends EventEmitter {
         // 3. Kết nối Bootstrap Server (để tìm bạn trên WAN)
         this.bootstrapClient.start();
 
+        // Lắng nghe trạng thái bootstrap để cập nhật cờ isBootstrapAlive
+        this.on('bootstrap-status', (status) => {
+            this.isBootstrapAlive = status.connected;
+        });
+
         // 4. Khởi động Heartbeat
         this.startHeartbeat();
         this.startCheckStalePeers();
@@ -65,6 +71,16 @@ class Peer extends EventEmitter {
     }
 
     sendToPeer(targetPeerId, message) {
+        // Chặn gửi tin nhắn khi bootstrap server offline
+        if (!this.isBootstrapAlive) {
+            logger.warn(`⛔ Không thể gửi tin nhắn tới ${targetPeerId}: Bootstrap server offline.`);
+            this.emit('send-error', {
+                target: targetPeerId,
+                reason: 'Bootstrap server đang offline. Không thể gửi tin nhắn.'
+            });
+            return false;
+        }
+
         const outgoing = this.prepareOutgoingMessage(message);
         const socket = this.tcpHandler.activeConnections.get(targetPeerId);
 
@@ -77,6 +93,16 @@ class Peer extends EventEmitter {
     }
 
     broadcastToNetwork(message) {
+        // Chặn broadcast khi bootstrap server offline
+        if (!this.isBootstrapAlive) {
+            logger.warn(`⛔ Không thể broadcast tin nhắn: Bootstrap server offline.`);
+            this.emit('send-error', {
+                target: 'broadcast',
+                reason: 'Bootstrap server đang offline. Không thể gửi tin nhắn.'
+            });
+            return false;
+        }
+
         const outgoing = this.prepareOutgoingMessage(message);
         const msgStr = JSON.stringify(outgoing) + '\n';
 
@@ -85,6 +111,7 @@ class Peer extends EventEmitter {
         });
 
         this.bootstrapClient.broadcast(outgoing);
+        return true;
     }
 
     handleRelayedMessage(relayFrom, msg) {

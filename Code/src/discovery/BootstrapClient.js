@@ -104,15 +104,53 @@ class BootstrapClient {
     scheduleReconnect() {
         if (this.reconnectTimer) return;
 
+        const wasConnected = this.connected;
         this.connected = false;
         this.socket = null;
         this.updateStatus(false);
         logger.warn('Bootstrap relay disconnected. Reconnecting in 3s...');
 
+        // Khi bootstrap server mất kết nối, đóng tất cả kết nối P2P
+        // để peer không thể tiếp tục chat khi server offline
+        if (wasConnected) {
+            this._disconnectAllPeers();
+        }
+
         this.reconnectTimer = setTimeout(() => {
             this.reconnectTimer = null;
             this.connect();
         }, 3000);
+    }
+
+    /**
+     * Đóng tất cả kết nối TCP P2P và xóa danh sách peer khi bootstrap server offline.
+     * Điều này đảm bảo peer KHÔNG THỂ tiếp tục chat khi mất kết nối server.
+     */
+    _disconnectAllPeers() {
+        logger.warn('🔌 Bootstrap server offline — đang đóng tất cả kết nối P2P...');
+
+        // Lấy danh sách peer hiện tại trước khi xóa
+        const peerIds = Array.from(this.peer.knownPeers);
+
+        // Đóng tất cả socket TCP P2P
+        for (const [peerId, socket] of this.peer.tcpHandler.activeConnections.entries()) {
+            if (!socket.destroyed) {
+                socket.destroy();
+            }
+            this.peer.tcpHandler.activeConnections.delete(peerId);
+        }
+
+        // Xóa tất cả peer khỏi danh sách và thông báo cho UI
+        for (const peerId of peerIds) {
+            this.peer.knownPeers.delete(peerId);
+            this.peer.peerTimestamps.delete(peerId);
+            this.peer.peerSources.delete(peerId);
+            this.peer.groupChat.removePeerFromAllRooms(peerId);
+            this.peer.messageQueue.onPeerDisconnect(peerId);
+            this.peer.emit('peer-disconnected', peerId);
+        }
+
+        logger.warn(`❌ Đã ngắt kết nối ${peerIds.length} peer(s) do bootstrap server offline.`);
     }
 
     stop() {

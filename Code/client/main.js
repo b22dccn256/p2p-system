@@ -92,6 +92,13 @@ app.whenReady().then(async () => {
         }
     });
 
+    // Chuyển tiếp lỗi gửi tin nhắn (khi bootstrap server offline) xuống UI
+    node.on('send-error', (data) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('send-error', data);
+        }
+    });
+
     await node.start();
     logger.success(`🚀 Định danh của bạn là: ${myId}`);
 

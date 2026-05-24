@@ -6,7 +6,11 @@
     "scripts": {
         "start": "node src/cli.js",
         "server": "node bootstrap-server/server.js",
-        "start:gui": "electron client/main.js"
+        "start:gui": "electron client/main.js",
+        "lan:server": "powershell -ExecutionPolicy Bypass -File ./start-lan-server.ps1",
+        "bootstrap:up": "docker compose -f docker-compose.bootstrap.yml up -d --build",
+        "bootstrap:down": "docker compose -f docker-compose.bootstrap.yml down",
+        "bootstrap:logs": "docker logs -f p2p-bootstrap-server"
     },
     "dependencies": {
         "chalk": "^4.1.2"

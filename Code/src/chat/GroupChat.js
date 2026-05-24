@@ -64,6 +64,12 @@ class GroupChat {
 
     // Target 4: Broadcast message tới tất cả member trong room
     broadcast(roomId, text) {
+        // Kiểm tra bootstrap server trước khi gửi
+        if (!this.peer.isBootstrapAlive) {
+            logger.error('⛔ Không thể gửi tin nhắn nhóm: Bootstrap server đang offline.');
+            return false;
+        }
+
         const roomMembers = this.rooms.get(roomId);
         if (!roomMembers || !roomMembers.has(this.peer.id)) {
             logger.error(`Bạn chưa tham gia room ${roomId}!`);

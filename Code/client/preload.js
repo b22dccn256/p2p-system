@@ -21,5 +21,8 @@ contextBridge.exposeInMainWorld('p2pAPI', {
     onBootstrapStatus: (callback) => ipcRenderer.on('bootstrap-status', (event, data) => callback(data)),
     
     // Nhận thông tin của chính Node lúc khởi động
-    onNodeReady: (callback) => ipcRenderer.on('node-ready', (event, data) => callback(data))
+    onNodeReady: (callback) => ipcRenderer.on('node-ready', (event, data) => callback(data)),
+
+    // Nhận lỗi gửi tin nhắn từ backend
+    onSendError: (callback) => ipcRenderer.on('send-error', (event, data) => callback(data))
 });
