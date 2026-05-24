@@ -1,6 +1,7 @@
 // bootstrap-server/server.js
 const net = require('net');
 const logger = require('../src/config/logger');
+const { BOOTSTRAP_PORT, BOOTSTRAP_LISTEN_ADDR } = require('../src/config/constants');
 
 const peers = new Map(); // Lưu trữ: { peerId: { ip, port, lastSeen } }
 
@@ -31,6 +32,9 @@ const server = net.createServer((socket) => {
     socket.on('error', (err) => logger.warn(`Client disconnected: ${err.message}`));
 });
 
-server.listen(9000, () => {
-    logger.info('🚀 Bootstrap server running on TCP port 9000');
+const PORT = process.env.PORT || BOOTSTRAP_PORT || 9000;
+const LISTEN_ADDR = process.env.LISTEN_ADDR || BOOTSTRAP_LISTEN_ADDR || '0.0.0.0';
+
+server.listen(PORT, LISTEN_ADDR, () => {
+    logger.info(`🚀 Bootstrap server running on ${LISTEN_ADDR}:${PORT}`);
 });
