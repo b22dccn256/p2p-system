@@ -75,26 +75,21 @@ class GroupChat {
         // Gửi tin nhắn tới những ai nằm trong danh sách room
         roomMembers.forEach((memberId) => {
             if (memberId !== this.peer.id) {
-                const socket = this.peer.tcpHandler.activeConnections.get(memberId);
-                if (socket) {
-                    const payload = { roomId };
-                    
-                    if (this.peer.keyExchange.hasKey(memberId)) {
-                        const sharedSecret = this.peer.keyExchange.getSharedSecret(memberId);
-                        payload.encrypted = this.peer.crypto.encrypt(text, sharedSecret);
-                    } else {
-                        // Fallback sang plaintext nếu chưa kịp trao đổi khóa
-                        payload.text = text;
-                    }
-
-                    const message = {
-                        type: 'GROUP_CHAT',
-                        from: this.peer.id,
-                        payload: payload
-                    };
-
-                    socket.write(JSON.stringify(message) + '\n');
+                const payload = { roomId };
+                
+                if (this.peer.keyExchange.hasKey(memberId)) {
+                    const sharedSecret = this.peer.keyExchange.getSharedSecret(memberId);
+                    payload.encrypted = this.peer.crypto.encrypt(text, sharedSecret);
+                } else {
+                    // Fallback sang plaintext nếu chưa kịp trao đổi khóa
+                    payload.text = text;
                 }
+
+                this.peer.sendToPeer(memberId, {
+                    type: 'GROUP_CHAT',
+                    from: this.peer.id,
+                    payload: payload
+                });
             }
         });
     }
@@ -128,10 +123,7 @@ class GroupChat {
     }
 
     _broadcastToNetwork(message) {
-        const msgStr = JSON.stringify(message) + '\n';
-        this.peer.tcpHandler.activeConnections.forEach((socket) => {
-            socket.write(msgStr);
-        });
+        this.peer.broadcastToNetwork(message);
     }
 }
 

@@ -14,13 +14,9 @@ class GlobalChat {
             payload: { text }
         };
 
-        const msgStr = JSON.stringify(message) + '\n';
-        
         let sentCount = 0;
-        this.peer.tcpHandler.activeConnections.forEach((socket) => {
-            socket.write(msgStr);
-            sentCount++;
-        });
+        this.peer.tcpHandler.activeConnections.forEach(() => sentCount++);
+        this.peer.broadcastToNetwork(message);
 
         logger.success(`Đã broadcast tin nhắn tới ${sentCount} peer(s).`);
     }

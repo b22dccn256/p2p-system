@@ -1,14 +1,14 @@
 // src/core/Peer.js
-const net = require('net');
 const { EventEmitter } = require('events');
 const TCPHandler = require('../network/TCPHandler');
 const UDPHandler = require('../network/UDPHandler');
+const BootstrapClient = require('../discovery/BootstrapClient');
 const DirectChat = require('../chat/DirectChat');
 const GroupChat = require('../chat/GroupChat');
 const GlobalChat = require('../chat/GlobalChat');
 const MessageQueue = require('../chat/MessageQueue');
 const logger = require('../config/logger');
-const { BOOTSTRAP_IP, BOOTSTRAP_PORT, HEARTBEAT_INTERVAL, HEARTBEAT_TIMEOUT } = require('../config/constants');
+const { HEARTBEAT_INTERVAL, HEARTBEAT_TIMEOUT } = require('../config/constants');
 const KeyExchange = require('../security/KeyExchange');
 const Crypto = require('../security/Crypto');
 
@@ -19,10 +19,12 @@ class Peer extends EventEmitter {
         this.tcpPort = 0; // 0 để OS tự cấp port rảnh
         this.tcpHandler = new TCPHandler(this, this.tcpPort);
         this.udpHandler = new UDPHandler(this);
+        this.bootstrapClient = new BootstrapClient(this);
         this.knownPeers = new Set(); // Chống trùng lặp
         this.peerTimestamps = new Map(); // Lưu thời gian tương tác cuối cùng
         this.frozenPeers = new Set(); // Dùng để test giả lập đứt cáp mạng
         this.isShuttingDown = false; // Cờ báo hiệu đang tắt máy
+        this.seenMessageIds = new Set();
         this.keyExchange = new KeyExchange(this);
         this.crypto = Crypto;
         
@@ -44,38 +46,56 @@ class Peer extends EventEmitter {
         this.udpHandler.start();
 
         // 3. Kết nối Bootstrap Server (để tìm bạn trên WAN)
-        this.connectToBootstrap();
+        this.bootstrapClient.start();
 
         // 4. Khởi động Heartbeat
         this.startHeartbeat();
         this.startCheckStalePeers();
     }
 
-    connectToBootstrap() {
-        const client = net.connect(BOOTSTRAP_PORT, BOOTSTRAP_IP, () => {
-            // Gửi REGISTER
-            client.write(JSON.stringify({
-                type: 'REGISTER',
-                peerId: this.id,
-                port: this.tcpPort
-            }) + '\n');
+    createMessageId() {
+        return `${this.id}-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+    }
+
+    prepareOutgoingMessage(message) {
+        if (!message.id) message.id = this.createMessageId();
+        if (!message.from) message.from = this.id;
+        return message;
+    }
+
+    sendToPeer(targetPeerId, message) {
+        const outgoing = this.prepareOutgoingMessage(message);
+        const socket = this.tcpHandler.activeConnections.get(targetPeerId);
+
+        if (socket && !socket.destroyed) {
+            socket.write(JSON.stringify(outgoing) + '\n');
+            return true;
+        }
+
+        return this.bootstrapClient.sendToPeer(targetPeerId, outgoing);
+    }
+
+    broadcastToNetwork(message) {
+        const outgoing = this.prepareOutgoingMessage(message);
+        const msgStr = JSON.stringify(outgoing) + '\n';
+
+        this.tcpHandler.activeConnections.forEach((socket) => {
+            if (!socket.destroyed) socket.write(msgStr);
         });
 
-        client.on('data', (data) => {
-            try {
-                const msg = JSON.parse(data.toString().trim());
-                if (msg.type === 'PEER_LIST') {
-                    logger.info(`Received ${msg.peers.length} peers from Bootstrap`);
-                    // Gọi hàm kết nối tới từng peer nhận được
-                    msg.peers.forEach(p => {
-                        if (p.id !== this.id) this.onPeerDiscovered(p.id, p.ip, p.port, 'BOOTSTRAP');
-                    });
-                }
-            } catch (e) { }
-            client.destroy(); // Lấy xong list thì ngắt kết nối Bootstrap
-        });
+        this.bootstrapClient.broadcast(outgoing);
+    }
 
-        client.on('error', () => logger.warn('Bootstrap server offline. Falling back to LAN mode only.'));
+    handleRelayedMessage(relayFrom, msg) {
+        if (!msg || msg.from === this.id) return;
+
+        if (!this.knownPeers.has(msg.from)) {
+            this.knownPeers.add(msg.from);
+            this.peerTimestamps.set(msg.from, Date.now());
+            this.emit('peer-discovered', { peerId: msg.from, source: 'BOOTSTRAP_RELAY' });
+        }
+
+        this.handleIncomingMessage(msg, msg.from || relayFrom);
     }
 
     onPeerDiscovered(peerId, ip, port, source) {
@@ -88,6 +108,9 @@ class Peer extends EventEmitter {
 
             // Tiến hành kết nối TCP P2P
             this.tcpHandler.connectToPeer(peerId, ip, port);
+            if (!this.keyExchange.hasKey(peerId)) {
+                setTimeout(() => this.keyExchange.initiate(peerId), 300);
+            }
         }
     }
 
@@ -114,6 +137,24 @@ class Peer extends EventEmitter {
 
     // Hàm hứng tin nhắn từ TCPHandler đẩy lên
     handleIncomingMessage(msg, socketPeerId) {
+        if (msg.id) {
+            if (this.seenMessageIds.has(msg.id)) {
+                if (msg.type === 'DIRECT_CHAT' && msg.seq !== undefined && msg.from) {
+                    this.sendToPeer(msg.from, {
+                        type: 'ACK',
+                        from: this.id,
+                        seq: msg.seq
+                    });
+                }
+                return;
+            }
+            this.seenMessageIds.add(msg.id);
+            if (this.seenMessageIds.size > 2000) {
+                const oldest = this.seenMessageIds.values().next().value;
+                this.seenMessageIds.delete(oldest);
+            }
+        }
+
         // Giả lập rớt mạng vật lý: Bơ luôn tin nhắn (kể cả PING), không thèm đọc
         if (this.frozenPeers.has(socketPeerId) || this.frozenPeers.has(msg.from)) {
             return; 
@@ -169,14 +210,11 @@ class Peer extends EventEmitter {
                 if (msg.from && msg.payload.publicKey) {
                     this.keyExchange.computeSecret(msg.from, msg.payload.publicKey);
                     // Gửi lại public key của mình dưới dạng RESPONSE
-                    const socket = this.tcpHandler.activeConnections.get(msg.from);
-                    if (socket) {
-                        socket.write(JSON.stringify({
-                            type: 'KEY_EXCHANGE_RESPONSE',
-                            from: this.id,
-                            payload: { publicKey: this.keyExchange.publicKey }
-                        }) + '\n');
-                    }
+                    this.sendToPeer(msg.from, {
+                        type: 'KEY_EXCHANGE_RESPONSE',
+                        from: this.id,
+                        payload: { publicKey: this.keyExchange.publicKey }
+                    });
                 }
                 break;
             case 'KEY_EXCHANGE_RESPONSE':
@@ -187,11 +225,11 @@ class Peer extends EventEmitter {
             case 'DIRECT_CHAT':
                 // Gửi ACK lại cho người gửi
                 if (msg.seq !== undefined && msg.from) {
-                    this.tcpHandler.activeConnections.get(msg.from)?.write(JSON.stringify({
+                    this.sendToPeer(msg.from, {
                         type: 'ACK',
                         from: this.id,
                         seq: msg.seq
-                    }) + '\n');
+                    });
                 }
                 this.directChat.onMessageReceived(msg);
                 break;
@@ -220,7 +258,7 @@ class Peer extends EventEmitter {
                 break;
             case 'ACK':
                 if (msg.seq !== undefined) {
-                    this.messageQueue.onAck(msg.seq);
+                    this.messageQueue.onAck(msg.seq, msg.from);
                     this.emit('message-ack', { seq: msg.seq, from: msg.from }); // Báo cho UI để chuyển ✔️✔️
                 }
                 break;

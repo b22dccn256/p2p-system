@@ -28,15 +28,12 @@ class KeyExchange {
 
     // Bắt đầu quá trình trao đổi khoá chủ động (Gửi KEY_EXCHANGE_INIT)
     initiate(targetPeerId) {
-        const socket = this.peer.tcpHandler.activeConnections.get(targetPeerId);
-        if (!socket) return;
-
         // logger.info(`🔑 Đang khởi tạo trao đổi khóa ECDH với ${targetPeerId}...`);
-        socket.write(JSON.stringify({
+        this.peer.sendToPeer(targetPeerId, {
             type: 'KEY_EXCHANGE_INIT',
             from: this.peer.id,
             payload: { publicKey: this.publicKey }
-        }) + '\n');
+        });
     }
 
     // Tính toán khoá bí mật chung (Shared Secret) từ public key của đối phương

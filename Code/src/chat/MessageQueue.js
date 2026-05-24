@@ -31,15 +31,11 @@ class MessageQueue {
         const item = this.pending.get(seq);
         if (!item) return;
 
-        const socket = this.peer.tcpHandler.activeConnections.get(item.target);
-        if (!socket) {
+        if (!this.peer.sendToPeer(item.target, item.message)) {
             this.pending.delete(seq);
             item.reject(new Error(`Không thể kết nối tới ${item.target} để gửi tin nhắn.`));
             return;
         }
-
-        // Gửi qua TCP
-        socket.write(JSON.stringify(item.message) + '\n');
 
         // Hẹn giờ kiểm tra ACK
         item.timer = setTimeout(() => {
@@ -56,8 +52,10 @@ class MessageQueue {
     }
 
     // Được gọi khi Peer.js nhận được ACK từ mạng
-    onAck(seq) {
+    onAck(seq, fromPeerId) {
         const item = this.pending.get(seq);
+        if (item && fromPeerId && item.target !== fromPeerId) return;
+
         if (item) {
             clearTimeout(item.timer);
             this.pending.delete(seq);
