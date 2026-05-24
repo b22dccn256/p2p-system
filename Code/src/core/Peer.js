@@ -132,6 +132,21 @@ class Peer extends EventEmitter {
 
         // Báo cho UI mọi tin nhắn ngoại trừ PING/PONG/ACK/KEY_EXCHANGE nội bộ
         if (msg.type !== 'PING' && msg.type !== 'PONG' && msg.type !== 'ACK' && msg.type !== 'KEY_EXCHANGE_INIT' && msg.type !== 'KEY_EXCHANGE_RESPONSE') {
+            // Tự động giải mã trước để UI tiện hiển thị (nếu có E2EE)
+            if (msg.type === 'DIRECT_CHAT' || msg.type === 'GROUP_CHAT') {
+                if (msg.payload && msg.payload.encrypted) {
+                    try {
+                        const sharedSecret = this.keyExchange.getSharedSecret(msg.from);
+                        if (sharedSecret) {
+                            msg.decryptedText = this.crypto.decrypt(msg.payload.encrypted, sharedSecret);
+                            msg.isEncrypted = true;
+                            msg.ciphertext = msg.payload.encrypted.content; // Đoạn text hex mã hóa để debug UI
+                        }
+                    } catch (err) {
+                        logger.error(`[E2EE Decrypt UI Error] ${err.message}`);
+                    }
+                }
+            }
             this.emit('message', msg);
         }
 

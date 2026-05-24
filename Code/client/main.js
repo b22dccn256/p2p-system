@@ -113,6 +113,28 @@ ipcMain.handle('join-room', (event, roomId) => {
     node.groupChat.joinRoom(roomId);
 });
 
+ipcMain.handle('leave-room', (event, roomId) => {
+    if (!node) return;
+    node.groupChat.leaveRoom(roomId);
+});
+
+ipcMain.handle('create-room', (event, roomName) => {
+    if (!node) return null;
+    const slug = roomName.normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[đĐ]/g, 'd')
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .trim()
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-');
+    
+    const randomHash = Math.random().toString(36).substring(2, 6);
+    const roomKey = `${slug || 'room'}#${randomHash}`;
+    node.groupChat.joinRoom(roomKey);
+    return roomKey;
+});
+
 ipcMain.handle('send-room', (event, roomId, text) => {
     if (!node) return;
     node.groupChat.broadcast(roomId, text);

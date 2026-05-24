@@ -51,9 +51,30 @@ async function start() {
                 if (success) {
                     logger.success(`Đã gửi tới ${target} thành công! (Nhận được ACK)`);
                 }
+            else if (cmd === '/create' && parts.length >= 2) {
+                // Lệnh: /create Tên phòng chat
+                const roomName = parts.slice(1).join(' ');
+                // Chuyển sang slug không dấu viết liền
+                const slug = roomName.normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .replace(/[đĐ]/g, 'd')
+                    .toLowerCase()
+                    .replace(/[^a-z0-9\s-]/g, '')
+                    .trim()
+                    .replace(/\s+/g, '-')
+                    .replace(/-+/g, '-');
+                
+                const randomHash = Math.random().toString(36).substring(2, 6);
+                const roomKey = `${slug || 'room'}#${randomHash}`;
+                
+                logger.success(`🎉 Đã tạo phòng "${roomName}" thành công!`);
+                logger.info(`🔑 Room Key (Mã phòng) của bạn là: ${roomKey}`);
+                logger.info(`👉 Hãy gửi mã này cho bạn bè để cùng tham gia nhé.`);
+                
+                node.groupChat.joinRoom(roomKey);
             }
             else if (cmd === '/join' && parts.length === 2) {
-                // Lệnh: /join room_game
+                // Lệnh: /join room_game#a8b2
                 node.groupChat.joinRoom(parts[1]);
             }
             else if (cmd === '/room' && parts.length >= 3) {
@@ -105,9 +126,10 @@ async function start() {
 ║              📖 DANH SÁCH LỆNH                   ║
 ╠══════════════════════════════════════════════════╣
 ║  /dm <peerId> <msg>   Gửi tin nhắn riêng (E2EE)  ║
-║  /join <roomId>       Tham gia phòng chat        ║
-║  /leave <roomId>      Rời khỏi phòng chat        ║
-║  /room <roomId> <msg> Gửi tin vào phòng (E2EE)   ║
+║  /create <roomName>   Tạo phòng tự sinh Room Key  ║
+║  /join <roomKey>      Tham gia phòng bằng Key    ║
+║  /leave <roomKey>     Rời khỏi phòng chat        ║
+║  /room <roomKey> <msg> Gửi tin vào phòng (E2EE)  ║
 ║  /users               Xem ai đang online         ║
 ║  /keys                Xem khóa mã hóa E2EE       ║
 ║  /exit                Thoát ứng dụng             ║

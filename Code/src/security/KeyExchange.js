@@ -5,8 +5,18 @@ const logger = require('../config/logger');
 class KeyExchange {
     constructor(peer) {
         this.peer = peer;
-        // Sử dụng đường cong secp256k1 chuẩn công nghiệp
-        this.ecdh = crypto.createECDH('secp256k1');
+        // Khởi tạo ECDH với đường cong tương thích cao (ưu tiên prime256v1 được hỗ trợ 100% trên cả Node và Electron)
+        const supportedCurves = crypto.getCurves();
+        let curveName = 'prime256v1';
+        if (!supportedCurves.includes(curveName)) {
+            if (supportedCurves.includes('secp256k1')) {
+                curveName = 'secp256k1';
+            } else {
+                curveName = supportedCurves[0] || 'prime256v1';
+            }
+        }
+        
+        this.ecdh = crypto.createECDH(curveName);
         this.ecdh.generateKeys();
         this.publicKey = this.ecdh.getPublicKey('hex');
         

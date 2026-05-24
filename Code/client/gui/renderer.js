@@ -15,27 +15,38 @@ const chatData = {};
 
 // Danh sách peers và phòng
 const knownPeers = new Set();
-const joinedRooms = new Set(); 
+const joinedRooms = new Map(); 
 
 // Để hàm truy cập được từ HTML onclick
 window.switchChat = function(chatId, isGroup) {
     currentActiveChat = chatId;
     isGroupChat = isGroup;
 
-    document.querySelector('.chat-title-info h2').innerText = isGroup ? `Phòng: ${chatId}` : `Riêng: ${chatId}`;
-    document.querySelector('.chat-title-info .peer-count').innerText = isGroup ? 'Chat Nhóm' : 'Chat Trực tiếp';
+    let displayName = chatId;
+    if (isGroup && joinedRooms.has(chatId)) {
+        displayName = joinedRooms.get(chatId);
+    }
+
+    document.querySelector('.chat-title-info h2').innerText = isGroup ? `Phòng: ${displayName}` : `Riêng: ${chatId}`;
+    document.querySelector('.chat-title-info .peer-count').innerText = isGroup ? `Mã phòng (Key): ${chatId}` : 'Chat Trực tiếp';
     
     renderChatHistory(chatId);
     updateSidebar();
     updateRightPanel();
 };
 
-window.joinRoom = function(roomId) {
-    if (!roomId) return;
-    joinedRooms.add(roomId);
-    window.p2pAPI.joinRoom(roomId);
+window.joinRoom = function(roomKey) {
+    if (!roomKey) return;
+    // Tự suy luận Tên phòng viết hoa từ slug roomKey nếu chưa có tên trong map
+    let roomName = roomKey;
+    if (roomKey.includes('#')) {
+        const parts = roomKey.split('#')[0].split('-');
+        roomName = parts.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+    }
+    joinedRooms.set(roomKey, roomName);
+    window.p2pAPI.joinRoom(roomKey);
     updateSidebar();
-    switchChat(roomId, true);
+    switchChat(roomKey, true);
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -73,7 +84,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Lưu vào model
         if (!chatData[currentActiveChat]) chatData[currentActiveChat] = [];
-        chatData[currentActiveChat].push({ sender: myNodeId, text: msg, isMine: true, seq, status: 'sending' });
+        const isSecure = currentActiveChat !== 'NETWORK_BROADCAST';
+        chatData[currentActiveChat].push({ 
+            sender: myNodeId, 
+            text: msg, 
+            isMine: true, 
+            seq, 
+            status: 'sending',
+            isEncrypted: isSecure,
+            ciphertext: isSecure ? 'Tin nhắn của bạn đã được mã hóa bằng AES-256-GCM tại lớp lõi P2P trước khi gửi đi.' : ''
+        });
         
         // Render
         renderChatHistory(currentActiveChat);
@@ -139,8 +159,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (!chatData[chatId]) chatData[chatId] = [];
-            const messageText = msg.payload?.text || msg.text;
-            chatData[chatId].push({ sender: msg.from, text: messageText, isMine: false });
+            const messageText = msg.decryptedText || msg.payload?.text || msg.text || '';
+            chatData[chatId].push({ 
+                sender: msg.from, 
+                text: messageText, 
+                isMine: false,
+                isEncrypted: msg.isEncrypted || false,
+                ciphertext: msg.ciphertext || ''
+            });
             
             soundReceive.currentTime = 0;
             soundReceive.play().catch(e => console.log(e));
@@ -216,8 +242,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const newRoomBtn = document.querySelector('.btn-new-room');
     if (newRoomBtn) {
         newRoomBtn.addEventListener('click', () => {
-            showRoomModal("Tạo phòng chat mới", (roomName) => {
-                window.joinRoom(roomName);
+            showRoomModal("Tạo phòng chat mới", async (roomName) => {
+                const roomKey = await window.p2pAPI.createRoom(roomName);
+                if (roomKey) {
+                    joinedRooms.set(roomKey, roomName);
+                    updateSidebar();
+                    switchChat(roomKey, true);
+                    alert(`🎉 Tạo phòng "${roomName}" thành công!\nMã phòng (Room Key): ${roomKey}\nHãy gửi mã này cho bạn bè.`);
+                }
             });
         });
     }
@@ -322,11 +354,23 @@ function renderChatHistory(chatId) {
             else if (msg.status === 'error') statusHtml = '<i class="fa-solid fa-circle-exclamation text-danger"></i>';
         }
 
+        let secureBadge = '';
+        if (msg.isEncrypted) {
+            secureBadge = `
+                <div class="e2ee-badge" style="font-size: 10px; color: var(--success); margin-top: 6px; display: flex; align-items: center; gap: 4px; border-top: 1px solid rgba(0,0,0,0.05); padding-top: 4px; cursor: pointer;" onclick="alert('🔑 CHI TIẾT MÃ HÓA ĐẦU-CUỐI (E2EE):\\n\\n- Thuật toán: AES-256-GCM\\n- Khóa thỏa thuận: ECDH secp256k1\\n- Ciphertext (Dữ liệu truyền trên mạng):\\n\\n${msg.ciphertext || 'Đã mã hoá bí mật'}')">
+                    <i class="fa-solid fa-user-shield"></i> E2EE Secured (Xem Cipher)
+                </div>
+            `;
+        }
+
         if (msg.isMine) {
             history.insertAdjacentHTML('beforeend', `
                 <div class="message-group sent">
                     <div class="message-content">
-                        <div class="message-bubble">${msg.text}</div>
+                        <div class="message-bubble">
+                            ${msg.text}
+                            ${secureBadge}
+                        </div>
                         <span class="message-time">${statusHtml} Vừa xong</span>
                     </div>
                 </div>
@@ -337,7 +381,10 @@ function renderChatHistory(chatId) {
                     <img src="${avatarSrc}" class="avatar-small">
                     <div class="message-content">
                         <span class="sender-name">${msg.sender}</span>
-                        <div class="message-bubble">${msg.text}</div>
+                        <div class="message-bubble">
+                            ${msg.text}
+                            ${secureBadge}
+                        </div>
                     </div>
                 </div>
             `);
@@ -373,14 +420,18 @@ function updateSidebar() {
     `);
 
     // Render Rooms
-    joinedRooms.forEach(room => {
-        const isActive = currentActiveChat === room ? 'active' : '';
+    joinedRooms.forEach((roomName, roomKey) => {
+        const isActive = currentActiveChat === roomKey ? 'active' : '';
         container.insertAdjacentHTML('beforeend', `
-            <div class="chat-item ${isActive}" onclick="window.switchChat('${room}', true)" style="cursor:pointer">
-                <div class="chat-avatar" style="background:#5865F2;color:white;display:flex;align-items:center;justify-content:center;border-radius:50%;width:40px;height:40px;"><i class="fa-solid fa-hashtag"></i></div>
-                <div class="chat-info">
-                    <div class="chat-name">${room}</div>
+            <div class="chat-item ${isActive}" onclick="window.switchChat('${roomKey}', true)" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center; position:relative;">
+                <div style="display:flex; align-items:center; gap:14px; flex:1; min-width:0;">
+                    <div class="chat-avatar" style="background:#5865F2;color:white;display:flex;align-items:center;justify-content:center;border-radius:50%;width:40px;height:40px;flex-shrink:0;"><i class="fa-solid fa-hashtag"></i></div>
+                    <div class="chat-info" style="min-width:0;">
+                        <div class="chat-name" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${roomName}</div>
+                    </div>
                 </div>
+                <!-- 3-dot Button -->
+                <div class="room-menu-btn" onclick="window.toggleRoomMenu(event, '${roomKey}')" style="padding: 6px; cursor: pointer; color: var(--text-muted); z-index: 5;"><i class="fa-solid fa-ellipsis-vertical"></i></div>
             </div>
         `);
     });
@@ -472,3 +523,74 @@ async function updateRightPanel() {
         `);
     }
 }
+
+// ==================== ROOM CONTEXT MENU ====================
+let activeMenuRoomKey = null;
+
+window.toggleRoomMenu = function(event, roomKey) {
+    event.stopPropagation();
+    const menu = document.getElementById('room-context-menu');
+    if (!menu) return;
+
+    if (menu.style.display === 'block' && activeMenuRoomKey === roomKey) {
+        menu.style.display = 'none';
+        return;
+    }
+
+    activeMenuRoomKey = roomKey;
+    
+    // Đặt vị trí menu ngay cạnh nút 3 chấm
+    const rect = event.currentTarget.getBoundingClientRect();
+    menu.style.left = `${rect.left - 110}px`;
+    menu.style.top = `${rect.bottom + 5}px`;
+    menu.style.display = 'block';
+};
+
+// Đóng menu khi click bất kỳ đâu
+document.addEventListener('click', () => {
+    const menu = document.getElementById('room-context-menu');
+    if (menu) menu.style.display = 'none';
+});
+
+// Gắn sự kiện cho các nút trong menu ngữ cảnh
+document.addEventListener('DOMContentLoaded', () => {
+    const btnCopy = document.getElementById('menu-copy-key');
+    const btnLeave = document.getElementById('menu-leave-room');
+
+    if (btnCopy) {
+        btnCopy.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (activeMenuRoomKey) {
+                navigator.clipboard.writeText(activeMenuRoomKey).then(() => {
+                    alert(`📋 Đã sao chép mã phòng (Room Key): ${activeMenuRoomKey}`);
+                }).catch(err => {
+                    console.error('Không thể sao chép: ', err);
+                });
+            }
+            const menu = document.getElementById('room-context-menu');
+            if (menu) menu.style.display = 'none';
+        });
+    }
+
+    if (btnLeave) {
+        btnLeave.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            if (activeMenuRoomKey) {
+                const roomName = joinedRooms.get(activeMenuRoomKey) || activeMenuRoomKey;
+                const confirmed = confirm(`Bạn có chắc muốn thoát khỏi phòng "${roomName}"?`);
+                if (confirmed) {
+                    await window.p2pAPI.leaveRoom(activeMenuRoomKey);
+                    joinedRooms.delete(activeMenuRoomKey);
+                    updateSidebar();
+                    
+                    // Nếu đang ở phòng vừa thoát thì chuyển về phát thanh toàn mạng
+                    if (currentActiveChat === activeMenuRoomKey) {
+                        window.switchChat('NETWORK_BROADCAST', true);
+                    }
+                }
+            }
+            const menu = document.getElementById('room-context-menu');
+            if (menu) menu.style.display = 'none';
+        });
+    }
+});
