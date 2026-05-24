@@ -22,6 +22,7 @@ class Peer extends EventEmitter {
         this.bootstrapClient = new BootstrapClient(this);
         this.knownPeers = new Set(); // Chống trùng lặp
         this.peerTimestamps = new Map(); // Lưu thời gian tương tác cuối cùng
+        this.peerSources = new Map();
         this.frozenPeers = new Set(); // Dùng để test giả lập đứt cáp mạng
         this.isShuttingDown = false; // Cờ báo hiệu đang tắt máy
         this.seenMessageIds = new Set();
@@ -90,26 +91,55 @@ class Peer extends EventEmitter {
         if (!msg || msg.from === this.id) return;
 
         if (!this.knownPeers.has(msg.from)) {
-            this.knownPeers.add(msg.from);
+            this.onPeerDiscovered(msg.from, null, null, 'BOOTSTRAP_RELAY');
+        } else {
+            this.peerSources.set(msg.from, 'BOOTSTRAP_RELAY');
             this.peerTimestamps.set(msg.from, Date.now());
-            this.emit('peer-discovered', { peerId: msg.from, source: 'BOOTSTRAP_RELAY' });
         }
 
         this.handleIncomingMessage(msg, msg.from || relayFrom);
     }
 
     onPeerDiscovered(peerId, ip, port, source) {
+        if (peerId === this.id) return;
+
+        this.peerTimestamps.set(peerId, Date.now());
+        if (source) this.peerSources.set(peerId, source);
+
         if (!this.knownPeers.has(peerId)) {
             this.knownPeers.add(peerId);
-            this.peerTimestamps.set(peerId, Date.now());
             logger.discover(peerId, ip, port); // Target 5: Log "🔍 Discovered peer: xxx"
 
             this.emit('peer-discovered', { peerId, ip, port, source }); // Báo lên UI
 
             // Tiến hành kết nối TCP P2P
-            this.tcpHandler.connectToPeer(peerId, ip, port);
+            if (ip && port) this.tcpHandler.connectToPeer(peerId, ip, port);
             if (!this.keyExchange.hasKey(peerId)) {
                 setTimeout(() => this.keyExchange.initiate(peerId), 300);
+            }
+            this.groupChat.syncRoomsToPeer(peerId);
+        } else if (!this.keyExchange.hasKey(peerId)) {
+            setTimeout(() => this.keyExchange.initiate(peerId), 300);
+            this.groupChat.syncRoomsToPeer(peerId);
+        }
+    }
+
+    syncBootstrapPeers(peerIds) {
+        const onlinePeerIds = new Set(peerIds.filter((peerId) => peerId !== this.id));
+
+        for (const peerId of onlinePeerIds) {
+            this.peerTimestamps.set(peerId, Date.now());
+            const source = this.peerSources.get(peerId);
+            if (!source || source.startsWith('BOOTSTRAP')) {
+                this.peerSources.set(peerId, 'BOOTSTRAP');
+            }
+        }
+
+        for (const peerId of Array.from(this.knownPeers)) {
+            const source = this.peerSources.get(peerId) || '';
+            const hasDirectSocket = this.tcpHandler.activeConnections.has(peerId);
+            if (source.startsWith('BOOTSTRAP') && !onlinePeerIds.has(peerId) && !hasDirectSocket) {
+                this.onPeerDisconnect(peerId);
             }
         }
     }
@@ -166,6 +196,7 @@ class Peer extends EventEmitter {
             // Fix bug: Nếu người này tự kết nối tới mình (ẩn danh) mà UDP/Bootstrap chưa kịp báo
             if (!this.knownPeers.has(socketPeerId)) {
                 this.knownPeers.add(socketPeerId);
+                this.peerSources.set(socketPeerId, 'TCP_Handshake');
                 logger.discover(socketPeerId, "TCP_Handshake", "Auto");
                 this.emit('peer-discovered', { peerId: socketPeerId, source: 'TCP_Handshake' });
             }
@@ -289,6 +320,12 @@ class Peer extends EventEmitter {
             // logger.info(`[DEBUG] Đang quét nhịp tim của ${peerIds.length} người... (${peerIds.join(', ')})`);
 
             for (const [peerId, lastSeen] of this.peerTimestamps.entries()) {
+                const source = this.peerSources.get(peerId) || '';
+                const hasDirectSocket = this.tcpHandler.activeConnections.has(peerId);
+                if (source.startsWith('BOOTSTRAP') && this.bootstrapClient.connected && !hasDirectSocket) {
+                    continue;
+                }
+
                 const idleTime = now - lastSeen;
                 if (idleTime > HEARTBEAT_TIMEOUT) {
                     logger.warn(`[DEBUG] Phát hiện timeout cho ${peerId}! Idle: ${idleTime}ms`);
@@ -305,6 +342,7 @@ class Peer extends EventEmitter {
         if (this.knownPeers.has(peerId)) {
             this.knownPeers.delete(peerId);
             this.peerTimestamps.delete(peerId);
+            this.peerSources.delete(peerId);
             this.groupChat.removePeerFromAllRooms(peerId); // Cập nhật trạng thái
             this.messageQueue.onPeerDisconnect(peerId); // Báo cho Queue hủy tin chưa gửi
             

@@ -58,6 +58,7 @@ app.whenReady().then(async () => {
     // Chờ 1 chút để UI load xong preload
     mainWindow.webContents.on('did-finish-load', () => {
         mainWindow.webContents.send('node-ready', { id: node.id });
+        mainWindow.webContents.send('bootstrap-status', node.bootstrapClient.getStatus());
     });
 
     // Lắng nghe Event từ Node đẩy xuống Renderer
@@ -158,6 +159,11 @@ ipcMain.handle('get-users', (event) => {
         id: peerId,
         lastSeen: node.peerTimestamps.get(peerId) || null
     }));
+});
+
+ipcMain.handle('get-bootstrap-status', () => {
+    if (!node) return null;
+    return node.bootstrapClient.getStatus();
 });
 
 // Fix #9: Lấy danh sách thành viên thực tế của một room

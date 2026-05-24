@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('p2pAPI', {
     sendRoom: (roomId, msg) => ipcRenderer.invoke('send-room', roomId, msg),
     sendGlobal: (msg) => ipcRenderer.invoke('send-global', msg),
     getUsers: () => ipcRenderer.invoke('get-users'),
+    getBootstrapStatus: () => ipcRenderer.invoke('get-bootstrap-status'),
     getRoomMembers: (roomId) => ipcRenderer.invoke('get-room-members', roomId),
     disconnect: () => ipcRenderer.invoke('disconnect'),
 

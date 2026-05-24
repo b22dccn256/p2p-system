@@ -50,10 +50,33 @@ window.joinRoom = function(roomKey) {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
+    const updateBootstrapStatus = (data) => {
+        const statusEl = document.getElementById('bootstrap-status-text');
+        if (!statusEl || !data) return;
+
+        statusEl.classList.toggle('connected', !!data.connected);
+        statusEl.classList.toggle('offline', !data.connected);
+        statusEl.innerText = data.connected
+            ? `Bootstrap: Connected ${data.host}:${data.port}`
+            : `Bootstrap: Offline ${data.host}:${data.port}`;
+    };
+
+    const refreshKnownPeers = async () => {
+        const users = await window.p2pAPI.getUsers();
+        knownPeers.clear();
+        users.forEach(u => {
+            const peerId = u.id || u;
+            if (peerId && peerId !== myNodeId) knownPeers.add(peerId);
+        });
+        updateSidebar();
+        updateRightPanel();
+    };
+
     // 1. Nhận thông tin node
     window.p2pAPI.onNodeReady(async (data) => {
         myNodeId = data.id;
         document.getElementById('network-status-text').innerText = `Trực tuyến - Định danh: ${myNodeId}`;
+        updateBootstrapStatus(await window.p2pAPI.getBootstrapStatus());
         
         // Cập nhật tên của mình lên giao diện
         document.querySelector('.user-name').innerText = myNodeId;
@@ -61,12 +84,15 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelector('.user-profile .avatar').src = avatarSrc;
 
         // Fetch danh sách user hiện tại (tránh lỗi lỡ mất event lúc giao diện đang load)
-        const users = await window.p2pAPI.getUsers();
-        users.forEach(u => knownPeers.add(u.id || u));
+        await refreshKnownPeers();
 
         // Auto switch phòng mặc định
         window.switchChat('NETWORK_BROADCAST', true);
     });
+
+    setInterval(() => {
+        if (myNodeId) refreshKnownPeers();
+    }, 3000);
 
     // 2. Gửi tin nhắn
     const chatInput = document.querySelector('.chat-input');
@@ -128,6 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.p2pAPI.onPeerDiscovered((data) => {
         knownPeers.add(data.peerId);
         updateSidebar();
+        updateRightPanel();
     });
 
     window.p2pAPI.onPeerDisconnected((peerId) => {
@@ -204,16 +231,7 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log(`[ACK] Received for seq=${data.seq} from=${data.from}`);
     });
 
-    window.p2pAPI.onBootstrapStatus((data) => {
-        const statusEl = document.getElementById('bootstrap-status-text');
-        if (!statusEl) return;
-
-        statusEl.classList.toggle('connected', !!data.connected);
-        statusEl.classList.toggle('offline', !data.connected);
-        statusEl.innerText = data.connected
-            ? `Bootstrap: Connected ${data.host}:${data.port}`
-            : `Bootstrap: Offline ${data.host}:${data.port}`;
-    });
+    window.p2pAPI.onBootstrapStatus(updateBootstrapStatus);
 
     // 4. Panel Đóng mở
     const closePanelBtn = document.querySelector('.close-panel');

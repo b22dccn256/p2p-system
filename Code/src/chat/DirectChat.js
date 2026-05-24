@@ -11,7 +11,11 @@ class DirectChat {
         if (!this.peer.keyExchange.hasKey(targetPeerId)) {
             logger.warn(`🛡️ Chưa có khoá E2EE với ${targetPeerId}. Đang tự động trao đổi khoá...`);
             this.peer.keyExchange.initiate(targetPeerId);
-            throw new Error(`Đang thiết lập kênh truyền bảo mật với ${targetPeerId}. Vui lòng gửi lại sau 1 giây!`);
+            const keyReady = await this.waitForKey(targetPeerId, 5000);
+            if (!keyReady) {
+                logger.error(`Không thể thiết lập khóa E2EE với ${targetPeerId}.`);
+                return false;
+            }
         }
 
         const sharedSecret = this.peer.keyExchange.getSharedSecret(targetPeerId);
@@ -52,6 +56,25 @@ class DirectChat {
         } catch (err) {
             logger.error(`📩 [Direct] Lỗi giải mã tin nhắn từ ${msg.from}: ${err.message}`);
         }
+    }
+
+    waitForKey(targetPeerId, timeoutMs) {
+        const startedAt = Date.now();
+
+        return new Promise((resolve) => {
+            const timer = setInterval(() => {
+                if (this.peer.keyExchange.hasKey(targetPeerId)) {
+                    clearInterval(timer);
+                    resolve(true);
+                    return;
+                }
+
+                if (Date.now() - startedAt >= timeoutMs) {
+                    clearInterval(timer);
+                    resolve(false);
+                }
+            }, 100);
+        });
     }
 }
 

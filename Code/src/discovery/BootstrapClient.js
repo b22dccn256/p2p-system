@@ -9,6 +9,11 @@ class BootstrapClient {
         this.connected = false;
         this.buffer = '';
         this.reconnectTimer = null;
+        this.lastStatus = {
+            connected: false,
+            host: BOOTSTRAP_IP,
+            port: BOOTSTRAP_PORT
+        };
     }
 
     start() {
@@ -22,11 +27,7 @@ class BootstrapClient {
             this.socket = socket;
             this.connected = true;
             socket.setKeepAlive(true, 30000);
-            this.peer.emit('bootstrap-status', {
-                connected: true,
-                host: BOOTSTRAP_IP,
-                port: BOOTSTRAP_PORT
-            });
+            this.updateStatus(true);
             socket.write(JSON.stringify({
                 type: 'REGISTER',
                 peerId: this.peer.id,
@@ -63,6 +64,7 @@ class BootstrapClient {
     handleMessage(msg) {
         if (msg.type === 'PEER_LIST') {
             logger.info(`Received ${msg.peers.length} peers from Bootstrap`);
+            this.peer.syncBootstrapPeers(msg.peers.map((p) => p.id));
             msg.peers.forEach((p) => {
                 if (p.id !== this.peer.id) {
                     this.peer.onPeerDiscovered(p.id, p.ip, p.port, 'BOOTSTRAP');
@@ -104,11 +106,7 @@ class BootstrapClient {
 
         this.connected = false;
         this.socket = null;
-        this.peer.emit('bootstrap-status', {
-            connected: false,
-            host: BOOTSTRAP_IP,
-            port: BOOTSTRAP_PORT
-        });
+        this.updateStatus(false);
         logger.warn('Bootstrap relay disconnected. Reconnecting in 3s...');
 
         this.reconnectTimer = setTimeout(() => {
@@ -121,6 +119,19 @@ class BootstrapClient {
         if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
         this.reconnectTimer = null;
         if (this.socket && !this.socket.destroyed) this.socket.end();
+    }
+
+    updateStatus(connected) {
+        this.lastStatus = {
+            connected,
+            host: BOOTSTRAP_IP,
+            port: BOOTSTRAP_PORT
+        };
+        this.peer.emit('bootstrap-status', this.lastStatus);
+    }
+
+    getStatus() {
+        return this.lastStatus;
     }
 }
 

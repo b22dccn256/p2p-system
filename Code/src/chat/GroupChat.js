@@ -125,6 +125,18 @@ class GroupChat {
     _broadcastToNetwork(message) {
         this.peer.broadcastToNetwork(message);
     }
+
+    syncRoomsToPeer(peerId) {
+        for (const [roomId, members] of this.rooms.entries()) {
+            if (!members.has(this.peer.id)) continue;
+
+            this.peer.sendToPeer(peerId, {
+                type: 'ROOM_JOIN',
+                from: this.peer.id,
+                payload: { roomId }
+            });
+        }
+    }
 }
 
 module.exports = GroupChat;
