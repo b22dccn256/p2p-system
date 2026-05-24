@@ -80,6 +80,19 @@ async function start() {
                     logger.info(`👥 Đang online (${peers.length} người): ${peers.join(', ')}`);
                 }
             }
+            else if (cmd === '/keys') {
+                // Lệnh: /keys (Xem danh sách khóa mật mã dùng chung E2EE)
+                const keysMap = node.keyExchange.sharedSecrets;
+                if (keysMap.size === 0) {
+                    logger.warn('Chưa thiết lập khóa bảo mật với ai.');
+                } else {
+                    logger.info(`🔑 DANH SÁCH KHÓA MÃ HÓA E2EE HIỆN TẠI:`);
+                    for (const [peerId, secret] of keysMap.entries()) {
+                        const hash = require('crypto').createHash('sha256').update(secret).digest('hex');
+                        logger.success(`   - ${peerId}: ${hash.substring(0, 32)}... [ĐÃ KÍNH HOẠT 🛡️]`);
+                    }
+                }
+            }
             else if (cmd === '/freeze' && parts.length === 2) {
                 // Lệnh: /freeze peer_123 (Test giả lập đứt cáp mạng)
                 const target = parts[1];
@@ -89,15 +102,16 @@ async function start() {
             else if (cmd === '/help') {
                 console.log(`
 ╔══════════════════════════════════════════════════╗
-║              📖 DANH SÁCH LỆNH                  ║
+║              📖 DANH SÁCH LỆNH                   ║
 ╠══════════════════════════════════════════════════╣
-║  /dm <peerId> <msg>   Gửi tin nhắn riêng        ║
+║  /dm <peerId> <msg>   Gửi tin nhắn riêng (E2EE)  ║
 ║  /join <roomId>       Tham gia phòng chat        ║
 ║  /leave <roomId>      Rời khỏi phòng chat        ║
-║  /room <roomId> <msg> Gửi tin vào phòng          ║
+║  /room <roomId> <msg> Gửi tin vào phòng (E2EE)   ║
 ║  /users               Xem ai đang online         ║
+║  /keys                Xem khóa mã hóa E2EE       ║
 ║  /exit                Thoát ứng dụng             ║
-║  /freeze <peerId>     [Test] Giả lập đứt mạng   ║
+║  /freeze <peerId>     [Test] Giả lập đứt mạng    ║
 ╚══════════════════════════════════════════════════╝
                 `);
             }

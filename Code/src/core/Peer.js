@@ -9,6 +9,8 @@ const GlobalChat = require('../chat/GlobalChat');
 const MessageQueue = require('../chat/MessageQueue');
 const logger = require('../config/logger');
 const { BOOTSTRAP_IP, BOOTSTRAP_PORT, HEARTBEAT_INTERVAL, HEARTBEAT_TIMEOUT } = require('../config/constants');
+const KeyExchange = require('../security/KeyExchange');
+const Crypto = require('../security/Crypto');
 
 class Peer extends EventEmitter {
     constructor(id) {
@@ -21,6 +23,8 @@ class Peer extends EventEmitter {
         this.peerTimestamps = new Map(); // Lưu thời gian tương tác cuối cùng
         this.frozenPeers = new Set(); // Dùng để test giả lập đứt cáp mạng
         this.isShuttingDown = false; // Cờ báo hiệu đang tắt máy
+        this.keyExchange = new KeyExchange(this);
+        this.crypto = Crypto;
         
         this.messageQueue = new MessageQueue(this);
         this.directChat = new DirectChat(this);
@@ -88,6 +92,11 @@ class Peer extends EventEmitter {
     }
 
     onConnectionEstablished(peerId) {
+        // Chỉ khởi tạo trao đổi khóa nếu chưa có khóa của peer này
+        if (!this.keyExchange.hasKey(peerId)) {
+            this.keyExchange.initiate(peerId);
+        }
+
         // Khi có kết nối mới, đồng bộ trạng thái phòng chat
         for (const [roomId, members] of this.groupChat.rooms.entries()) {
             if (members.has(this.id)) {
@@ -121,12 +130,31 @@ class Peer extends EventEmitter {
             }
         }
 
-        // Báo cho UI mọi tin nhắn ngoại trừ PING/PONG nội bộ (tuỳ yêu cầu)
-        if (msg.type !== 'PING' && msg.type !== 'PONG' && msg.type !== 'ACK') {
+        // Báo cho UI mọi tin nhắn ngoại trừ PING/PONG/ACK/KEY_EXCHANGE nội bộ
+        if (msg.type !== 'PING' && msg.type !== 'PONG' && msg.type !== 'ACK' && msg.type !== 'KEY_EXCHANGE_INIT' && msg.type !== 'KEY_EXCHANGE_RESPONSE') {
             this.emit('message', msg);
         }
 
         switch (msg.type) {
+            case 'KEY_EXCHANGE_INIT':
+                if (msg.from && msg.payload.publicKey) {
+                    this.keyExchange.computeSecret(msg.from, msg.payload.publicKey);
+                    // Gửi lại public key của mình dưới dạng RESPONSE
+                    const socket = this.tcpHandler.activeConnections.get(msg.from);
+                    if (socket) {
+                        socket.write(JSON.stringify({
+                            type: 'KEY_EXCHANGE_RESPONSE',
+                            from: this.id,
+                            payload: { publicKey: this.keyExchange.publicKey }
+                        }) + '\n');
+                    }
+                }
+                break;
+            case 'KEY_EXCHANGE_RESPONSE':
+                if (msg.from && msg.payload.publicKey) {
+                    this.keyExchange.computeSecret(msg.from, msg.payload.publicKey);
+                }
+                break;
             case 'DIRECT_CHAT':
                 // Gửi ACK lại cho người gửi
                 if (msg.seq !== undefined && msg.from) {

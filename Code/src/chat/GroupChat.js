@@ -70,17 +70,29 @@ class GroupChat {
             return;
         }
 
-        const message = {
-            type: 'GROUP_CHAT',
-            from: this.peer.id,
-            payload: { roomId, text }
-        };
+        logger.info(`🔒 [E2EE Group Broadcast] Đang mã hóa và gửi tới các thành viên trong room ${roomId}...`);
 
         // Gửi tin nhắn tới những ai nằm trong danh sách room
         roomMembers.forEach((memberId) => {
             if (memberId !== this.peer.id) {
                 const socket = this.peer.tcpHandler.activeConnections.get(memberId);
                 if (socket) {
+                    const payload = { roomId };
+                    
+                    if (this.peer.keyExchange.hasKey(memberId)) {
+                        const sharedSecret = this.peer.keyExchange.getSharedSecret(memberId);
+                        payload.encrypted = this.peer.crypto.encrypt(text, sharedSecret);
+                    } else {
+                        // Fallback sang plaintext nếu chưa kịp trao đổi khóa
+                        payload.text = text;
+                    }
+
+                    const message = {
+                        type: 'GROUP_CHAT',
+                        from: this.peer.id,
+                        payload: payload
+                    };
+
                     socket.write(JSON.stringify(message) + '\n');
                 }
             }
@@ -88,7 +100,22 @@ class GroupChat {
     }
 
     onMessageReceived(msg) {
-        logger.info(`📢 [Room ${msg.payload.roomId}] ${msg.from}: ${msg.payload.text}`);
+        const roomId = msg.payload.roomId;
+        if (msg.payload.encrypted) {
+            try {
+                const sharedSecret = this.peer.keyExchange.getSharedSecret(msg.from);
+                if (!sharedSecret) {
+                    logger.error(`📢 [Room ${roomId}] Nhận được tin nhắn từ ${msg.from} nhưng chưa có khóa giải mã!`);
+                    return;
+                }
+                const decryptedText = this.peer.crypto.decrypt(msg.payload.encrypted, sharedSecret);
+                logger.info(`📢 [Room ${roomId}] [E2EE] ${msg.from}: ${decryptedText}`);
+            } catch (err) {
+                logger.error(`📢 [Room ${roomId}] Lỗi giải mã tin nhắn nhóm từ ${msg.from}: ${err.message}`);
+            }
+        } else if (msg.payload.text) {
+            logger.info(`📢 [Room ${roomId}] ${msg.from}: ${msg.payload.text} (Plaintext)`);
+        }
     }
 
     // Target 5: Xóa peer khỏi tất cả các room khi họ rời mạng
