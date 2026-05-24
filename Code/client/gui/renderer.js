@@ -159,13 +159,30 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (!chatData[chatId]) chatData[chatId] = [];
-            const messageText = msg.decryptedText || msg.payload?.text || msg.text || '';
+            let forwardedFrom = msg.forwardedFrom || null;
+            let messageTextRaw = msg.decryptedText || msg.payload?.text || msg.text || '';
+            let messageText = messageTextRaw;
+
+            // Nếu tin nhắn chưa được bóc tách ở backend (ví dụ: tin nhắn plaintext/global chat)
+            if (!forwardedFrom) {
+                try {
+                    const parsed = JSON.parse(messageTextRaw);
+                    if (parsed && typeof parsed === 'object' && parsed.text && parsed.forwardedFrom) {
+                        messageText = parsed.text;
+                        forwardedFrom = parsed.forwardedFrom;
+                    }
+                } catch (e) {
+                    // Không phải JSON hợp lệ
+                }
+            }
+
             chatData[chatId].push({ 
                 sender: msg.from, 
                 text: messageText, 
                 isMine: false,
                 isEncrypted: msg.isEncrypted || false,
-                ciphertext: msg.ciphertext || ''
+                ciphertext: msg.ciphertext || '',
+                forwardedFrom: forwardedFrom
             });
             
             soundReceive.currentTime = 0;
