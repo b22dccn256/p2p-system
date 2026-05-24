@@ -22,6 +22,11 @@ class BootstrapClient {
             this.socket = socket;
             this.connected = true;
             socket.setKeepAlive(true, 30000);
+            this.peer.emit('bootstrap-status', {
+                connected: true,
+                host: BOOTSTRAP_IP,
+                port: BOOTSTRAP_PORT
+            });
             socket.write(JSON.stringify({
                 type: 'REGISTER',
                 peerId: this.peer.id,
@@ -99,6 +104,11 @@ class BootstrapClient {
 
         this.connected = false;
         this.socket = null;
+        this.peer.emit('bootstrap-status', {
+            connected: false,
+            host: BOOTSTRAP_IP,
+            port: BOOTSTRAP_PORT
+        });
         logger.warn('Bootstrap relay disconnected. Reconnecting in 3s...');
 
         this.reconnectTimer = setTimeout(() => {

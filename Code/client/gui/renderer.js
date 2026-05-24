@@ -204,6 +204,17 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log(`[ACK] Received for seq=${data.seq} from=${data.from}`);
     });
 
+    window.p2pAPI.onBootstrapStatus((data) => {
+        const statusEl = document.getElementById('bootstrap-status-text');
+        if (!statusEl) return;
+
+        statusEl.classList.toggle('connected', !!data.connected);
+        statusEl.classList.toggle('offline', !data.connected);
+        statusEl.innerText = data.connected
+            ? `Bootstrap: Connected ${data.host}:${data.port}`
+            : `Bootstrap: Offline ${data.host}:${data.port}`;
+    });
+
     // 4. Panel Đóng mở
     const closePanelBtn = document.querySelector('.close-panel');
     const rightPanel = document.querySelector('.right-panel');

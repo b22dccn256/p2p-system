@@ -85,6 +85,12 @@ app.whenReady().then(async () => {
         }
     });
 
+    node.on('bootstrap-status', (data) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('bootstrap-status', data);
+        }
+    });
+
     await node.start();
     logger.success(`🚀 Định danh của bạn là: ${myId}`);
 

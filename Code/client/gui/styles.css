@@ -756,8 +756,17 @@ body {
 }
 
 .status-content span {
+    display: block;
     font-size: 13px;
     color: #94a3b8;
+}
+
+#bootstrap-status-text.connected {
+    color: var(--success);
+}
+
+#bootstrap-status-text.offline {
+    color: #f87171;
 }
 
 /* ================= CUSTOM MODAL DIALOG ================= */

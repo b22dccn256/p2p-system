@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld('p2pAPI', {
     onPeerDisconnected: (callback) => ipcRenderer.on('peer-disconnected', (event, peerId) => callback(peerId)),
     onMessage: (callback) => ipcRenderer.on('message', (event, msg) => callback(msg)),
     onMessageAck: (callback) => ipcRenderer.on('message-ack', (event, data) => callback(data)),
+    onBootstrapStatus: (callback) => ipcRenderer.on('bootstrap-status', (event, data) => callback(data)),
     
     // Nhận thông tin của chính Node lúc khởi động
     onNodeReady: (callback) => ipcRenderer.on('node-ready', (event, data) => callback(data))

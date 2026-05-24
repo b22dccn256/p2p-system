@@ -29,6 +29,7 @@ const server = net.createServer((socket) => {
             peerSockets.delete(registeredPeerId);
             peers.delete(registeredPeerId);
             logger.warn(`Node disconnected: ${registeredPeerId}`);
+            logger.info(`Online peers: ${peerSockets.size}`);
             broadcastPeerList(registeredPeerId);
         }
     });
@@ -49,6 +50,7 @@ const server = net.createServer((socket) => {
                 peerSockets.set(msg.peerId, socket);
 
                 logger.success(`Node registered: ${msg.peerId}`);
+                logger.info(`Online peers: ${peerSockets.size}`);
                 sendPeerList(socket);
                 broadcastPeerList(msg.peerId);
                 return;
