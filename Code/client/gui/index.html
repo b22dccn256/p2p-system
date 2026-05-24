@@ -132,6 +132,25 @@
         <div class="context-menu-item" id="menu-leave-room" style="padding: 10px 16px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 8px; color: var(--danger); transition: background 0.2s;"><i class="fa-solid fa-arrow-right-from-bracket"></i> Thoát phòng</div>
     </div>
 
+    <!-- Hộp thoại chuyển tiếp tin nhắn (Forward Modal) -->
+    <div id="forward-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content" style="width: 420px; border-radius: 12px; padding: 20px;">
+            <header class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3 style="margin: 0; font-size: 18px; font-weight: 600;">Chuyển tiếp tin nhắn</h3>
+                <button class="icon-btn close-forward-btn" style="background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text-muted);"><i class="fa-solid fa-xmark"></i></button>
+            </header>
+            <div class="modal-body">
+                <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">Chọn một cuộc trò chuyện từ danh sách dưới đây:</p>
+                <div id="forward-destinations-list" style="display: flex; flex-direction: column; gap: 8px; max-height: 240px; overflow-y: auto; padding-right: 5px;">
+                    <!-- Sẽ được render động -->
+                </div>
+            </div>
+            <footer class="modal-footer" style="display: flex; justify-content: flex-end; margin-top: 15px; border-top: 1px solid var(--border-color); padding-top: 15px;">
+                <button class="btn btn-secondary cancel-forward-btn" style="padding: 8px 16px; border: 1px solid var(--border-color); background: none; border-radius: 6px; cursor: pointer;">Hủy</button>
+            </footer>
+        </div>
+    </div>
+
     <script src="../lib/avatar.min.js"></script>
     <script src="renderer.js"></script>
 </body>

@@ -138,7 +138,21 @@ class Peer extends EventEmitter {
                     try {
                         const sharedSecret = this.keyExchange.getSharedSecret(msg.from);
                         if (sharedSecret) {
-                            msg.decryptedText = this.crypto.decrypt(msg.payload.encrypted, sharedSecret);
+                            const decryptedText = this.crypto.decrypt(msg.payload.encrypted, sharedSecret);
+                            
+                            // Tự bóc tách nếu tin nhắn giải mã là JSON chuyển tiếp chứa forwardedFrom
+                            try {
+                                const parsed = JSON.parse(decryptedText);
+                                if (parsed && typeof parsed === 'object' && parsed.forwardedFrom) {
+                                    msg.decryptedText = parsed.text;
+                                    msg.forwardedFrom = parsed.forwardedFrom;
+                                } else {
+                                    msg.decryptedText = decryptedText;
+                                }
+                            } catch (e) {
+                                msg.decryptedText = decryptedText;
+                            }
+                            
                             msg.isEncrypted = true;
                             msg.ciphertext = msg.payload.encrypted.content; // Đoạn text hex mã hóa để debug UI
                         }

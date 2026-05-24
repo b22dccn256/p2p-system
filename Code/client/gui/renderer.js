@@ -363,13 +363,34 @@ function renderChatHistory(chatId) {
             `;
         }
 
+        // Xử lý chuỗi an toàn khi truyền qua HTML attribute onclick
+        const escapedText = (msg.text || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, '\\n');
+        const escapedSender = (msg.forwardedFrom || msg.sender || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+
+        const actionsHtml = `
+            <div class="message-actions">
+                <i class="fa-solid fa-share" title="Chuyển tiếp" onclick="window.initiateForward('${escapedText}', '${escapedSender}')" style="cursor: pointer; color: var(--text-muted);"></i>
+            </div>
+        `;
+
+        let forwardedHeader = '';
+        if (msg.forwardedFrom) {
+            forwardedHeader = `
+                <div style="font-size: 11px; color: var(--text-muted); font-style: italic; margin-bottom: 4px; display: flex; align-items: center; gap: 4px; border-bottom: 1px dashed rgba(0,0,0,0.1); padding-bottom: 4px;">
+                    <i class="fa-solid fa-share" style="transform: scaleX(-1);"></i> Chuyển tiếp từ ${msg.forwardedFrom}
+                </div>
+            `;
+        }
+
         if (msg.isMine) {
             history.insertAdjacentHTML('beforeend', `
                 <div class="message-group sent">
                     <div class="message-content">
                         <div class="message-bubble">
+                            ${forwardedHeader}
                             ${msg.text}
                             ${secureBadge}
+                            ${actionsHtml}
                         </div>
                         <span class="message-time">${statusHtml} Vừa xong</span>
                     </div>
@@ -382,8 +403,10 @@ function renderChatHistory(chatId) {
                     <div class="message-content">
                         <span class="sender-name">${msg.sender}</span>
                         <div class="message-bubble">
+                            ${forwardedHeader}
                             ${msg.text}
                             ${secureBadge}
+                            ${actionsHtml}
                         </div>
                     </div>
                 </div>
@@ -593,4 +616,128 @@ document.addEventListener('DOMContentLoaded', () => {
             if (menu) menu.style.display = 'none';
         });
     }
+});
+
+// ==================== FORWARD MESSAGE SYSTEM ====================
+let forwardingMessageText = null;
+let forwardingOriginalSender = null;
+
+window.initiateForward = function(text, originalSender) {
+    forwardingMessageText = text;
+    forwardingOriginalSender = originalSender;
+
+    const modal = document.getElementById('forward-modal');
+    const listContainer = document.getElementById('forward-destinations-list');
+    if (!modal || !listContainer) return;
+
+    listContainer.innerHTML = '';
+
+    let hasDestinations = false;
+
+    // Render Rooms
+    joinedRooms.forEach((roomName, roomKey) => {
+        hasDestinations = true;
+        listContainer.insertAdjacentHTML('beforeend', `
+            <div class="forward-dest-item" onclick="window.executeForward('${roomKey}', true)">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <span style="background:#5865F2; color:white; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px;"><i class="fa-solid fa-hashtag"></i></span>
+                    <span style="font-weight:600; font-size:13px; color:var(--text-dark);">${roomName}</span>
+                </div>
+                <button class="btn btn-primary" style="padding: 4px 10px; font-size: 11px; border-radius: 4px; background:var(--primary); border:none; color:white; cursor:pointer;">Gửi</button>
+            </div>
+        `);
+    });
+
+    // Render Peers
+    knownPeers.forEach(peerId => {
+        if (peerId !== myNodeId) {
+            hasDestinations = true;
+            listContainer.insertAdjacentHTML('beforeend', `
+                <div class="forward-dest-item" onclick="window.executeForward('${peerId}', false)">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <span style="background:#2ecc71; color:white; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px;"><i class="fa-solid fa-user"></i></span>
+                        <span style="font-weight:600; font-size:13px; color:var(--text-dark); font-family:monospace;">${peerId}</span>
+                    </div>
+                    <button class="btn btn-primary" style="padding: 4px 10px; font-size: 11px; border-radius: 4px; background:var(--primary); border:none; color:white; cursor:pointer;">Gửi</button>
+                </div>
+            `);
+        }
+    });
+
+    if (!hasDestinations) {
+        listContainer.innerHTML = '<p style="color:var(--text-muted); font-size:13px; text-align:center; padding: 20px 0;">Không tìm thấy phòng hoặc peer nào trực tuyến để chuyển tiếp.</p>';
+    }
+
+    modal.style.display = 'flex';
+};
+
+window.executeForward = async function(targetId, isGroup) {
+    const modal = document.getElementById('forward-modal');
+    if (modal) modal.style.display = 'none';
+
+    if (!forwardingMessageText || !forwardingOriginalSender) return;
+
+    // Đóng gói payload JSON chuyển tiếp (Telegram-style)
+    const payloadObj = {
+        text: forwardingMessageText,
+        forwardedFrom: forwardingOriginalSender
+    };
+    const payloadStr = JSON.stringify(payloadObj);
+
+    // Lưu vào model chatData cục bộ để hiển thị ngay lập tức
+    if (!chatData[targetId]) chatData[targetId] = [];
+    
+    // Gửi đi
+    if (isGroup) {
+        await window.p2pAPI.sendRoom(targetId, payloadStr);
+        chatData[targetId].push({
+            sender: myNodeId,
+            text: forwardingMessageText,
+            isMine: true,
+            seq: Date.now().toString(),
+            status: 'sent',
+            isEncrypted: true,
+            ciphertext: 'Tin nhắn chuyển tiếp được tái mã hóa tự động.',
+            forwardedFrom: forwardingOriginalSender
+        });
+    } else {
+        const success = await window.p2pAPI.sendDm(targetId, payloadStr);
+        chatData[targetId].push({
+            sender: myNodeId,
+            text: forwardingMessageText,
+            isMine: true,
+            seq: Date.now().toString(),
+            status: success ? 'read' : 'error',
+            isEncrypted: true,
+            ciphertext: 'Tin nhắn chuyển tiếp được tái mã hóa tự động.',
+            forwardedFrom: forwardingOriginalSender
+        });
+    }
+
+    // Phát âm thanh gửi tin nhắn
+    soundSend.currentTime = 0;
+    soundSend.play().catch(e => console.log(e));
+
+    // Chuyển ngay đến phòng/peer vừa được chuyển tiếp để xem kết quả trực quan
+    window.switchChat(targetId, isGroup);
+    
+    // Reset biến tạm
+    forwardingMessageText = null;
+    forwardingOriginalSender = null;
+};
+
+// Đóng forward modal khi click nút Hủy hoặc nút X
+document.addEventListener('DOMContentLoaded', () => {
+    const modal = document.getElementById('forward-modal');
+    const closeBtn = document.querySelector('.close-forward-btn');
+    const cancelBtn = document.querySelector('.cancel-forward-btn');
+
+    const hideForwardModal = () => {
+        if (modal) modal.style.display = 'none';
+        forwardingMessageText = null;
+        forwardingOriginalSender = null;
+    };
+
+    if (closeBtn) closeBtn.addEventListener('click', hideForwardModal);
+    if (cancelBtn) cancelBtn.addEventListener('click', hideForwardModal);
 });

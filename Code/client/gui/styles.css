@@ -491,45 +491,7 @@ body {
     gap: 4px;
 }
 
-/* Hover actions for bubbles */
-.message-actions {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    background: white;
-    border-radius: 20px;
-    padding: 6px 12px;
-    display: flex;
-    gap: 12px;
-    box-shadow: var(--shadow-md);
-    opacity: 0;
-    pointer-events: none;
-    transition: all 0.2s;
-    border: 1px solid var(--border-color);
-}
-
-.message-group.received .message-actions {
-    right: -130px;
-}
-
-.message-group.sent .message-actions {
-    left: -130px;
-}
-
-.message-bubble:hover .message-actions {
-    opacity: 1;
-    pointer-events: auto;
-}
-
-.message-actions i {
-    color: var(--text-muted);
-    cursor: pointer;
-    transition: color 0.2s;
-}
-
-.message-actions i:hover {
-    color: var(--primary);
-}
+/* Đã chuyển và tối ưu hóa message-actions nằm bên trong bong bóng chat ở cuối file */
 
 /* Input Area */
 .chat-input-container {
@@ -820,4 +782,61 @@ body {
         transform: translateY(0);
         opacity: 1;
     }
+}
+
+/* Style cho message actions (chuyển tiếp tin nhắn) đặt bên trong bong bóng chat */
+.message-bubble {
+    position: relative;
+    padding-right: 38px !important; /* Tạo khoảng trống nhỏ để nút share không đè lên text */
+}
+
+.message-actions {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--shadow-sm);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s, background-color 0.15s, transform 0.15s;
+    z-index: 10;
+}
+
+.message-bubble:hover .message-actions {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.message-actions:hover {
+    background-color: white;
+    transform: scale(1.1);
+}
+
+.message-actions i {
+    font-size: 11px;
+    color: var(--text-dark) !important;
+}
+
+.forward-dest-item {
+    padding: 10px 14px;
+    border-radius: 8px;
+    background-color: var(--bg-light);
+    border: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.forward-dest-item:hover {
+    background-color: var(--hover-bg);
+    border-color: var(--primary);
 }
