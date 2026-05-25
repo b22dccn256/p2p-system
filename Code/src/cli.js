@@ -51,6 +51,7 @@ async function start() {
                 if (success) {
                     logger.success(`Đã gửi tới ${target} thành công! (Nhận được ACK)`);
                 }
+            }
             else if (cmd === '/create' && parts.length >= 2) {
                 // Lệnh: /create Tên phòng chat
                 const roomName = parts.slice(1).join(' ');
@@ -63,14 +64,14 @@ async function start() {
                     .trim()
                     .replace(/\s+/g, '-')
                     .replace(/-+/g, '-');
-                
+
                 const randomHash = Math.random().toString(36).substring(2, 6);
                 const roomKey = `${slug || 'room'}#${randomHash}`;
-                
+
                 logger.success(`🎉 Đã tạo phòng "${roomName}" thành công!`);
                 logger.info(`🔑 Room Key (Mã phòng) của bạn là: ${roomKey}`);
                 logger.info(`👉 Hãy gửi mã này cho bạn bè để cùng tham gia nhé.`);
-                
+
                 node.groupChat.joinRoom(roomKey);
             }
             else if (cmd === '/join' && parts.length === 2) {
@@ -143,7 +144,6 @@ async function start() {
         } catch (err) {
             logger.error(err.message);
         }
-
         setTimeout(() => rl.prompt(), 100); // Tránh bị dính log
     });
 }
