@@ -98,51 +98,86 @@ document.addEventListener('DOMContentLoaded', () => {
     const chatInput = document.querySelector('.chat-input');
     const sendBtn = document.querySelector('.send-btn');
 
-    const sendMessage = async () => {
-        if (!chatInput || !currentActiveChat) return;
-        const msg = chatInput.value.trim();
-        if (msg === '') return;
+    // Xử lý gửi File (Tính năng Nâng cao)
+    const attachBtn = document.querySelector('.attach-btn');
+    const fileInput = document.getElementById('file-input');
 
-        chatInput.value = '';
-        
-        // Tạo unique seq local
+    if (attachBtn && fileInput) {
+        attachBtn.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            // Giới hạn file 5MB cho bài tập
+            if (file.size > 5 * 1024 * 1024) {
+                alert("Vui lòng chọn file nhỏ hơn 5MB.");
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = async (ev) => {
+                const base64Data = ev.target.result;
+                const fileMsgObj = {
+                    type: 'file',
+                    name: file.name,
+                    mime: file.type,
+                    data: base64Data
+                };
+                
+                const msgString = JSON.stringify(fileMsgObj);
+                await performSendMessage(msgString);
+            };
+            reader.readAsDataURL(file);
+            fileInput.value = ''; // Reset
+        });
+    }
+
+    const performSendMessage = async (msgText) => {
+        if (!currentActiveChat) return;
         const seq = Date.now().toString();
 
-        // Lưu vào model
         if (!chatData[currentActiveChat]) chatData[currentActiveChat] = [];
         const isSecure = currentActiveChat !== 'NETWORK_BROADCAST';
         chatData[currentActiveChat].push({ 
             sender: myNodeId, 
-            text: msg, 
+            text: msgText, 
             isMine: true, 
             seq, 
             status: 'sending',
             isEncrypted: isSecure,
-            ciphertext: isSecure ? 'Tin nhắn của bạn đã được mã hóa bằng AES-256-GCM tại lớp lõi P2P trước khi gửi đi.' : ''
+            ciphertext: isSecure ? 'Tin nhắn chứa file đính kèm (hoặc text) được mã hóa AES-256-GCM.' : ''
         });
         
-        // Render
         renderChatHistory(currentActiveChat);
         soundSend.currentTime = 0;
         soundSend.play().catch(e => console.log(e));
 
-        // Gọi IPC
         if (currentActiveChat === 'NETWORK_BROADCAST') {
-            const success = await window.p2pAPI.sendGlobal(msg);
+            const success = await window.p2pAPI.sendGlobal(msgText);
             updateMessageStatus(currentActiveChat, seq, success === false ? 'error' : 'sent');
         } else if (isGroupChat) {
-            const success = await window.p2pAPI.sendRoom(currentActiveChat, msg);
+            const success = await window.p2pAPI.sendRoom(currentActiveChat, msgText);
             // Room chat không có ACK, nhưng vẫn check lỗi bootstrap offline
             updateMessageStatus(currentActiveChat, seq, success === false ? 'error' : 'sent');
         } else {
-            // Direct chat — dùng kết quả trả về từ sendDm (đã await ACK bên backend)
-            const success = await window.p2pAPI.sendDm(currentActiveChat, msg);
+            const success = await window.p2pAPI.sendDm(currentActiveChat, msgText);
             if (success) {
                 updateMessageStatus(currentActiveChat, seq, 'read');
             } else {
                 updateMessageStatus(currentActiveChat, seq, 'error');
             }
         }
+    };
+
+    const sendMessage = async () => {
+        if (!chatInput || !currentActiveChat) return;
+        const msg = chatInput.value.trim();
+        if (msg === '') return;
+        chatInput.value = '';
+        await performSendMessage(msg);
     };
 
     chatInput.addEventListener('keypress', (e) => {
@@ -445,13 +480,35 @@ function renderChatHistory(chatId) {
             `;
         }
 
+        // Kiểm tra nếu nội dung là File Transfer JSON
+        let contentHtml = msg.text;
+        try {
+            if (msg.text.startsWith('{') && msg.text.includes('"type":"file"')) {
+                const parsed = JSON.parse(msg.text);
+                if (parsed && parsed.type === 'file' && parsed.data) {
+                    if (parsed.mime && parsed.mime.startsWith('image/')) {
+                        contentHtml = `<a href="${parsed.data}" download="${parsed.name}" title="Click để tải về"><img src="${parsed.data}" style="max-width: 250px; border-radius: 8px; margin-top: 4px; display: block;" alt="${parsed.name}"/></a>
+                                       <div style="font-size: 11px; margin-top: 4px; opacity: 0.8;">📎 ${parsed.name}</div>`;
+                    } else {
+                        contentHtml = `<div style="display:flex; align-items:center; gap:8px; background:rgba(0,0,0,0.1); padding:8px 12px; border-radius:8px; margin-top:4px;">
+                                           <i class="fa-solid fa-file" style="font-size: 24px;"></i>
+                                           <div style="flex:1; overflow:hidden;">
+                                               <div style="font-weight: 500; font-size: 13px; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">${parsed.name}</div>
+                                               <a href="${parsed.data}" download="${parsed.name}" style="font-size: 12px; color: inherit; text-decoration:underline;">Tải xuống</a>
+                                           </div>
+                                       </div>`;
+                    }
+                }
+            }
+        } catch(e) {}
+
         if (msg.isMine) {
             history.insertAdjacentHTML('beforeend', `
                 <div class="message-group sent">
                     <div class="message-content">
                         <div class="message-bubble">
                             ${forwardedHeader}
-                            ${msg.text}
+                            ${contentHtml}
                             ${secureBadge}
                             ${actionsHtml}
                         </div>
@@ -467,7 +524,7 @@ function renderChatHistory(chatId) {
                         <span class="sender-name">${msg.sender}</span>
                         <div class="message-bubble">
                             ${forwardedHeader}
-                            ${msg.text}
+                            ${contentHtml}
                             ${secureBadge}
                             ${actionsHtml}
                         </div>

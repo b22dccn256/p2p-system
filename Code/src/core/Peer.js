@@ -35,6 +35,9 @@ class Peer extends EventEmitter {
         this.groupChat = new GroupChat(this);
         this.globalChat = new GlobalChat(this);
         
+        // Store and Forward
+        this.relayQueue = new Map();
+        
         this.heartbeatTimer = null;
         this.staleCheckTimer = null;
     }
@@ -89,7 +92,32 @@ class Peer extends EventEmitter {
             return true;
         }
 
-        return this.bootstrapClient.sendToPeer(targetPeerId, outgoing);
+        const sentViaBootstrap = this.bootstrapClient.sendToPeer(targetPeerId, outgoing);
+        
+        if (!sentViaBootstrap) {
+            // --- Store and Forward Logic ---
+            logger.info(`[Store-and-Forward] Peer ${targetPeerId} offline. Nhờ các Peer khác giữ hộ tin nhắn!`);
+            const relayMessage = {
+                type: 'STORE_AND_FORWARD',
+                from: this.id,
+                payload: {
+                    target: targetPeerId,
+                    message: outgoing
+                }
+            };
+            // Nhờ vả bạn bè đang kết nối
+            this.tcpHandler.activeConnections.forEach((peerSocket) => {
+                if (!peerSocket.destroyed) peerSocket.write(JSON.stringify(relayMessage) + '\n');
+            });
+
+            this.emit('send-error', {
+                target: targetPeerId,
+                reason: 'Peer offline. Đã đẩy vào hàng đợi Store-and-Forward trên mạng.'
+            });
+            return false;
+        }
+
+        return true;
     }
 
     broadcastToNetwork(message) {
@@ -190,6 +218,21 @@ class Peer extends EventEmitter {
                 }
             }
         }
+
+        // Store-and-Forward: Giao hàng
+        if (this.relayQueue.has(peerId)) {
+            const pendingMessages = this.relayQueue.get(peerId);
+            if (pendingMessages.length > 0) {
+                logger.info(`[Store-and-Forward] Giao ${pendingMessages.length} tin nhắn gửi gắm cho ${peerId}`);
+                const socket = this.tcpHandler.activeConnections.get(peerId);
+                if (socket && !socket.destroyed) {
+                    pendingMessages.forEach(m => {
+                        socket.write(JSON.stringify(m) + '\n');
+                    });
+                    this.relayQueue.set(peerId, []);
+                }
+            }
+        }
     }
 
     // Hàm hứng tin nhắn từ TCPHandler đẩy lên
@@ -278,6 +321,24 @@ class Peer extends EventEmitter {
             case 'KEY_EXCHANGE_RESPONSE':
                 if (msg.from && msg.payload.publicKey) {
                     this.keyExchange.computeSecret(msg.from, msg.payload.publicKey);
+                }
+                break;
+            case 'STORE_AND_FORWARD':
+                if (msg.payload && msg.payload.target && msg.payload.message) {
+                    const target = msg.payload.target;
+                    if (target === this.id) {
+                        // Oh, tin nhắn này nhờ chuyển hộ, mà gửi cho chính mình!
+                        this.handleIncomingMessage(msg.payload.message, null);
+                    } else {
+                        // Lưu hộ vào queue
+                        if (!this.relayQueue.has(target)) this.relayQueue.set(target, []);
+                        const queue = this.relayQueue.get(target);
+                        const exists = queue.find(m => m.id === msg.payload.message.id);
+                        if (!exists) {
+                            queue.push(msg.payload.message);
+                            logger.info(`[Store-and-Forward] Đã lưu hộ 1 tin nhắn cho ${target}. Sẽ chuyển tiếp khi họ online.`);
+                        }
+                    }
                 }
                 break;
             case 'DIRECT_CHAT':
