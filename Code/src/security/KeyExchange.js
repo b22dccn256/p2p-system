@@ -28,7 +28,7 @@ class KeyExchange {
 
     // Bắt đầu quá trình trao đổi khoá chủ động (Gửi KEY_EXCHANGE_INIT)
     initiate(targetPeerId) {
-        // logger.info(`🔑 Đang khởi tạo trao đổi khóa ECDH với ${targetPeerId}...`);
+        logger.info(`🔑 [E2EE] Bắt đầu gửi KEY_EXCHANGE_INIT tới ${targetPeerId}...`);
         this.peer.sendToPeer(targetPeerId, {
             type: 'KEY_EXCHANGE_INIT',
             from: this.peer.id,

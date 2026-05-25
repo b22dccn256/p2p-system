@@ -308,7 +308,7 @@ class Peer extends EventEmitter {
 
         switch (msg.type) {
             case 'KEY_EXCHANGE_INIT':
-                if (msg.from && msg.payload.publicKey) {
+                if (msg.from && msg.payload && msg.payload.publicKey) {
                     this.keyExchange.computeSecret(msg.from, msg.payload.publicKey);
                     // Gửi lại public key của mình dưới dạng RESPONSE
                     this.sendToPeer(msg.from, {
@@ -319,7 +319,7 @@ class Peer extends EventEmitter {
                 }
                 break;
             case 'KEY_EXCHANGE_RESPONSE':
-                if (msg.from && msg.payload.publicKey) {
+                if (msg.from && msg.payload && msg.payload.publicKey) {
                     this.keyExchange.computeSecret(msg.from, msg.payload.publicKey);
                 }
                 break;

@@ -17,9 +17,9 @@ class DirectChat {
         if (!this.peer.keyExchange.hasKey(targetPeerId)) {
             logger.warn(`🛡️ Chưa có khoá E2EE với ${targetPeerId}. Đang tự động trao đổi khoá...`);
             this.peer.keyExchange.initiate(targetPeerId);
-            const keyReady = await this.waitForKey(targetPeerId, 5000);
+            const keyReady = await this.waitForKey(targetPeerId, 15000); // Tăng lên 15 giây cho Radmin VPN chậm
             if (!keyReady) {
-                logger.error(`Không thể thiết lập khóa E2EE với ${targetPeerId}.`);
+                logger.error(`Không thể thiết lập khóa E2EE với ${targetPeerId} sau 15 giây (Timeout).`);
                 return false;
             }
         }
