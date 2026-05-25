@@ -20,8 +20,8 @@ async function createWindow() {
 
     mainWindow.loadFile(path.join(__dirname, 'gui', 'index.html'));
     
-    // Mở DevTools để gỡ lỗi giao diện trực quan
-    mainWindow.webContents.openDevTools();
+    // Mở DevTools để debug (Tạm tắt theo yêu cầu)
+    // mainWindow.webContents.openDevTools();
     
     // Ngăn UI đóng ngay lập tức nếu chưa Graceful Shutdown
     mainWindow.on('close', (e) => {

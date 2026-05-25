@@ -735,8 +735,8 @@ body {
 /* ================= NETWORK STATUS BAR ================= */
 .network-status-bar {
     position: absolute;
-    bottom: 32px;
-    right: 32px;
+    bottom: 24px;
+    left: calc(var(--sidebar-nav-width) + 24px);
     background-color: var(--text-dark);
     color: white;
     padding: 16px 24px;

@@ -51,7 +51,7 @@ powershell -ExecutionPolicy Bypass -File .\start-lan-gui.ps1 -BootstrapIp 127.0.
 Mở PowerShell và khởi động GUI, trỏ IP bootstrap về **IP Radmin của Máy X** (đã lấy ở Bước 2.3).
 ```powershell
 cd Code
-powershell -ExecutionPolicy Bypass -File .\start-lan-gui.ps1 -BootstrapIp 26.111.222.123
+powershell -ExecutionPolicy Bypass -File .\start-lan-gui.ps1 -BootstrapIp 26.126.65.246
 ```
 *(Thay dãy số `26.111.222.123` bằng IP thực tế của Máy X)*
 
