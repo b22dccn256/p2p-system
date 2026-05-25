@@ -857,6 +857,24 @@ body {
     background: #f1f5f9 !important;
 }
 
+/* Message Status — Error State */
+.msg-error-icon {
+    color: #ef4444;
+    font-size: 13px;
+    animation: pulse-error 1.5s ease-in-out infinite;
+}
+
+.msg-error-text {
+    color: #ef4444;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+@keyframes pulse-error {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
 @keyframes fadeInModal {
     from { opacity: 0; }
     to { opacity: 1; }

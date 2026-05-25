@@ -150,13 +150,13 @@ ipcMain.handle('create-room', (event, roomName) => {
 });
 
 ipcMain.handle('send-room', (event, roomId, text) => {
-    if (!node) return;
-    node.groupChat.broadcast(roomId, text);
+    if (!node) return false;
+    return node.groupChat.broadcast(roomId, text);
 });
 
 ipcMain.handle('send-global', (event, text) => {
-    if (!node) return;
-    node.globalChat.broadcast(text);
+    if (!node) return false;
+    return node.globalChat.broadcast(text);
 });
 
 // Fix #8: Trả về thêm thông tin lastSeen cho mỗi peer

@@ -128,12 +128,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Gọi IPC
         if (currentActiveChat === 'NETWORK_BROADCAST') {
-            await window.p2pAPI.sendGlobal(msg);
-            updateMessageStatus(currentActiveChat, seq, 'sent');
+            const success = await window.p2pAPI.sendGlobal(msg);
+            updateMessageStatus(currentActiveChat, seq, success === false ? 'error' : 'sent');
         } else if (isGroupChat) {
-            await window.p2pAPI.sendRoom(currentActiveChat, msg);
-            // Room chat hiện tại không có cơ chế ACK trong Peer.js, nên coi như gửi xong
-            updateMessageStatus(currentActiveChat, seq, 'sent');
+            const success = await window.p2pAPI.sendRoom(currentActiveChat, msg);
+            // Room chat không có ACK, nhưng vẫn check lỗi bootstrap offline
+            updateMessageStatus(currentActiveChat, seq, success === false ? 'error' : 'sent');
         } else {
             // Direct chat — dùng kết quả trả về từ sendDm (đã await ACK bên backend)
             const success = await window.p2pAPI.sendDm(currentActiveChat, msg);
@@ -234,20 +234,18 @@ document.addEventListener('DOMContentLoaded', () => {
     window.p2pAPI.onBootstrapStatus(updateBootstrapStatus);
 
     window.p2pAPI.onSendError((data) => {
-        // Hiển thị thông báo lỗi (Toast/Alert)
-        alert(`Lỗi gửi tin nhắn:\n${data.reason}`);
-        
-        // Cập nhật trạng thái tin nhắn thành error trên giao diện (nếu đang ở màn hình chat đó)
-        // Lấy seq của tin nhắn cuối cùng (đang sending)
-        if (data.target && chatData[data.target]) {
-            const msgs = chatData[data.target];
-            if (msgs.length > 0 && msgs[msgs.length - 1].status === 'sending') {
-                updateMessageStatus(data.target, msgs[msgs.length - 1].seq, 'error');
-            }
-        } else if (data.target === 'broadcast' && chatData['NETWORK_BROADCAST']) {
-            const msgs = chatData['NETWORK_BROADCAST'];
-            if (msgs.length > 0 && msgs[msgs.length - 1].status === 'sending') {
-                updateMessageStatus('NETWORK_BROADCAST', msgs[msgs.length - 1].seq, 'error');
+        // Cập nhật trạng thái tin nhắn thành error — không dùng alert() để tránh block UI
+        // Tìm tất cả tin nhắn đang 'sending' trong chat tương ứng và đánh dấu lỗi
+        const targetChatId = data.target === 'broadcast' ? 'NETWORK_BROADCAST' : data.target;
+        if (targetChatId && chatData[targetChatId]) {
+            const msgs = chatData[targetChatId];
+            let updated = false;
+            for (let i = msgs.length - 1; i >= 0; i--) {
+                if (msgs[i].isMine && msgs[i].status === 'sending') {
+                    updateMessageStatus(targetChatId, msgs[i].seq, 'error');
+                    updated = true;
+                    break;
+                }
             }
         }
     });
@@ -416,7 +414,7 @@ function renderChatHistory(chatId) {
             if (msg.status === 'sending') statusHtml = '<i class="fa-regular fa-clock text-muted"></i> Đang gửi...';
             else if (msg.status === 'sent') statusHtml = '<i class="fa-solid fa-check text-muted" style="color:gray;"></i>';
             else if (msg.status === 'read') statusHtml = '<i class="fa-solid fa-check-double" style="color:blue;"></i>';
-            else if (msg.status === 'error') statusHtml = '<i class="fa-solid fa-circle-exclamation text-danger"></i>';
+            else if (msg.status === 'error') statusHtml = '<i class="fa-solid fa-circle-exclamation msg-error-icon" title="Tin nhắn chưa được gửi đến người nhận (mất kết nối)"></i> <span class="msg-error-text">Không gửi được</span>';
         }
 
         let secureBadge = '';
@@ -457,7 +455,7 @@ function renderChatHistory(chatId) {
                             ${secureBadge}
                             ${actionsHtml}
                         </div>
-                        <span class="message-time">${statusHtml} Vừa xong</span>
+                        <span class="message-time">${msg.status === 'error' ? statusHtml : `${statusHtml} Vừa xong`}</span>
                     </div>
                 </div>
             `);
