@@ -16,6 +16,7 @@ const chatData = {};
 // Danh sách peers và phòng
 const knownPeers = new Set();
 const joinedRooms = new Map(); 
+const mutedRooms = new Set(); // Muted room keys
 
 // Để hàm truy cập được từ HTML onclick
 window.switchChat = function(chatId, isGroup) {
@@ -190,12 +191,27 @@ document.addEventListener('DOMContentLoaded', () => {
         knownPeers.add(data.peerId);
         updateSidebar();
         updateRightPanel();
+        
+        // Thêm thông báo system vào Global Chat
+        if (!chatData['NETWORK_BROADCAST']) chatData['NETWORK_BROADCAST'] = [];
+        chatData['NETWORK_BROADCAST'].push({
+            isSystem: true,
+            text: `👋 Peer ${data.peerId} vừa tham gia mạng.`
+        });
+        if (currentActiveChat === 'NETWORK_BROADCAST') renderChatHistory('NETWORK_BROADCAST');
     });
 
     window.p2pAPI.onPeerDisconnected((peerId) => {
         knownPeers.delete(peerId);
         updateSidebar();
         updateRightPanel();
+        
+        if (!chatData['NETWORK_BROADCAST']) chatData['NETWORK_BROADCAST'] = [];
+        chatData['NETWORK_BROADCAST'].push({
+            isSystem: true,
+            text: `🚪 Peer ${peerId} đã rời mạng.`
+        });
+        if (currentActiveChat === 'NETWORK_BROADCAST') renderChatHistory('NETWORK_BROADCAST');
     });
 
     window.p2pAPI.onMessage((msg) => {
@@ -211,6 +227,16 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (msg.type === 'ROOM_JOIN' || msg.type === 'ROOM_LEAVE') {
             // Cập nhật right panel khi có người vào/rời phòng
             updateRightPanel();
+            
+            chatId = msg.payload.roomId;
+            if (!chatData[chatId]) chatData[chatId] = [];
+            const action = msg.type === 'ROOM_JOIN' ? 'tham gia' : 'rời';
+            const icon = msg.type === 'ROOM_JOIN' ? '👋' : '🚪';
+            chatData[chatId].push({
+                isSystem: true,
+                text: `${icon} ${msg.from} vừa ${action} phòng.`
+            });
+            if (currentActiveChat === chatId) renderChatHistory(chatId);
             return;
         }
 
@@ -247,8 +273,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 forwardedFrom: forwardedFrom
             });
             
-            soundReceive.currentTime = 0;
-            soundReceive.play().catch(e => console.log(e));
+            if (!mutedRooms.has(chatId)) {
+                soundReceive.currentTime = 0;
+                soundReceive.play().catch(e => console.log(e));
+            }
 
             if (currentActiveChat === chatId) {
                 renderChatHistory(chatId);
@@ -305,9 +333,10 @@ document.addEventListener('DOMContentLoaded', () => {
     
     let modalCallback = null;
 
-    const showRoomModal = (title, callback) => {
+    const showRoomModal = (title, placeholderText, callback) => {
         if (!roomModal || !modalTitle || !modalInput) return;
         modalTitle.textContent = title;
+        modalInput.placeholder = placeholderText;
         modalInput.value = '';
         roomModal.style.display = 'flex';
         modalInput.focus();
@@ -340,7 +369,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const newRoomBtn = document.querySelector('.btn-new-room');
     if (newRoomBtn) {
         newRoomBtn.addEventListener('click', () => {
-            showRoomModal("Tạo phòng chat mới", async (roomName) => {
+            showRoomModal("Tạo phòng chat mới", "Nhập tên phòng...", async (roomName) => {
                 const roomKey = await window.p2pAPI.createRoom(roomName);
                 if (roomKey) {
                     joinedRooms.set(roomKey, roomName);
@@ -356,7 +385,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const joinRoomBtn = document.querySelector('.btn-join-room');
     if (joinRoomBtn) {
         joinRoomBtn.addEventListener('click', () => {
-            showRoomModal("Tham gia phòng chat", (roomName) => {
+            showRoomModal("Tham gia phòng chat", "Nhập mã phòng (Key)...", (roomName) => {
                 window.joinRoom(roomName);
             });
         });
@@ -443,6 +472,17 @@ function renderChatHistory(chatId) {
 
     const messages = chatData[chatId] || [];
     messages.forEach(msg => {
+        if (msg.isSystem) {
+            history.insertAdjacentHTML('beforeend', `
+                <div class="message-group system" style="display: flex; justify-content: center; margin: 12px 0;">
+                    <div style="background: rgba(0,0,0,0.06); padding: 4px 16px; border-radius: 12px; font-size: 12px; color: var(--text-muted); font-weight: 500;">
+                        ${msg.text}
+                    </div>
+                </div>
+            `);
+            return;
+        }
+
         const avatarSrc = window.LetterAvatar ? window.LetterAvatar.generate(msg.sender, 40) : '';
         let statusHtml = '';
         if (msg.isMine) {
@@ -682,6 +722,16 @@ window.toggleRoomMenu = function(event, roomKey) {
 
     activeMenuRoomKey = roomKey;
     
+    // Cập nhật text cho menu Tắt Thông báo
+    const btnMute = document.getElementById('menu-mute-room');
+    if (btnMute) {
+        if (mutedRooms.has(activeMenuRoomKey)) {
+            btnMute.innerHTML = '<i class="fa-solid fa-bell"></i> Bật thông báo';
+        } else {
+            btnMute.innerHTML = '<i class="fa-solid fa-bell-slash"></i> Tắt thông báo';
+        }
+    }
+
     // Đặt vị trí menu ngay cạnh nút 3 chấm
     const rect = event.currentTarget.getBoundingClientRect();
     menu.style.left = `${rect.left - 110}px`;
@@ -709,6 +759,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 }).catch(err => {
                     console.error('Không thể sao chép: ', err);
                 });
+            }
+            const menu = document.getElementById('room-context-menu');
+            if (menu) menu.style.display = 'none';
+        });
+    }
+
+    const btnMute = document.getElementById('menu-mute-room');
+    if (btnMute) {
+        btnMute.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (activeMenuRoomKey) {
+                if (mutedRooms.has(activeMenuRoomKey)) {
+                    mutedRooms.delete(activeMenuRoomKey);
+                } else {
+                    mutedRooms.add(activeMenuRoomKey);
+                }
             }
             const menu = document.getElementById('room-context-menu');
             if (menu) menu.style.display = 'none';

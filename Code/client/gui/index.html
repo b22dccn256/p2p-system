@@ -120,7 +120,7 @@
                 <button class="icon-btn close-modal-btn"><i class="fa-solid fa-xmark"></i></button>
             </header>
             <div class="modal-body">
-                <input type="text" id="modal-room-input" placeholder="Nhập tên phòng...">
+                <input type="text" id="modal-room-input" placeholder="Nhập key phòng...">
             </div>
             <footer class="modal-footer">
                 <button class="btn btn-secondary cancel-modal-btn">Hủy</button>
@@ -132,6 +132,7 @@
     <!-- Floating Room Context Menu -->
     <div id="room-context-menu" class="context-menu" style="display: none; position: fixed; z-index: 10000; background: white; border: 1px solid var(--border-color); border-radius: 8px; box-shadow: var(--shadow-md); padding: 4px 0; width: 140px;">
         <div class="context-menu-item" id="menu-copy-key" style="padding: 10px 16px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background 0.2s;"><i class="fa-regular fa-copy"></i> Sao chép Key</div>
+        <div class="context-menu-item" id="menu-mute-room" style="padding: 10px 16px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background 0.2s;"><i class="fa-solid fa-bell-slash"></i> Tắt thông báo</div>
         <div class="context-menu-item" id="menu-leave-room" style="padding: 10px 16px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 8px; color: var(--danger); transition: background 0.2s;"><i class="fa-solid fa-arrow-right-from-bracket"></i> Thoát phòng</div>
     </div>
 
