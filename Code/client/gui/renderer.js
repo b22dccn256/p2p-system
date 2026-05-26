@@ -89,6 +89,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Auto switch phòng mặc định
         window.switchChat('NETWORK_BROADCAST', true);
+
+        // Báo hiệu UI đã sẵn sàng nhận các gói tin đệm từ main process
+        if (window.p2pAPI.uiReady) {
+            window.p2pAPI.uiReady();
+        }
     });
 
     setInterval(() => {

@@ -13,7 +13,7 @@ const KeyExchange = require('../security/KeyExchange');
 const Crypto = require('../security/Crypto');
 
 class Peer extends EventEmitter {
-    constructor(id) {
+    constructor(id, options = {}) {
         super();
         this.id = id;
         this.tcpPort = 0; // 0 để OS tự cấp port rảnh
@@ -27,7 +27,7 @@ class Peer extends EventEmitter {
         this.isShuttingDown = false; // Cờ báo hiệu đang tắt máy
         this.isBootstrapAlive = false; // Trạng thái kết nối Bootstrap Server
         this.seenMessageIds = new Set();
-        this.keyExchange = new KeyExchange(this);
+        this.keyExchange = new KeyExchange(this, options);
         this.crypto = Crypto;
         
         this.messageQueue = new MessageQueue(this);
@@ -92,7 +92,10 @@ class Peer extends EventEmitter {
             return true;
         }
 
-        const sentViaBootstrap = this.bootstrapClient.sendToPeer(targetPeerId, outgoing);
+        let sentViaBootstrap = false;
+        if (this.knownPeers.has(targetPeerId)) {
+            sentViaBootstrap = this.bootstrapClient.sendToPeer(targetPeerId, outgoing);
+        }
         
         if (!sentViaBootstrap) {
             // --- Store and Forward Logic ---
