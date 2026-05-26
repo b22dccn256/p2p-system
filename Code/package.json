@@ -10,7 +10,9 @@
         "lan:server": "powershell -ExecutionPolicy Bypass -File ./start-lan-server.ps1",
         "bootstrap:up": "docker compose -f docker-compose.bootstrap.yml up -d --build",
         "bootstrap:down": "docker compose -f docker-compose.bootstrap.yml down",
-        "bootstrap:logs": "docker logs -f p2p-bootstrap-server"
+        "bootstrap:logs": "docker logs -f p2p-bootstrap-server",
+        "churn": "node src/churn-controller.js",
+        "churn:quick": "node src/churn-controller.js --peers 3 --duration 60 --min 10 --max 25 --chat 5"
     },
     "dependencies": {
         "chalk": "^4.1.2"
