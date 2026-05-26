@@ -91,3 +91,123 @@ powershell -ExecutionPolicy Bypass -File .\start-lan-gui.ps1 -BootstrapIp 26.126
 > [!WARNING]
 > **Lỗi ExecutionPolicy trên Windows:**
 > Nếu PowerShell báo lỗi script bị chặn không cho chạy (do chính sách bảo mật của Windows), hãy chắc chắn rằng bạn đã thêm tiền tố `powershell -ExecutionPolicy Bypass -File` trước đường dẫn script như hướng dẫn phía trên.
+
+---
+
+## 🌀 5. Mô phỏng Churn (Peer tham gia và rời mạng liên tục)
+
+**Churn** là hiện tượng các peer liên tục tham gia và rời khỏi mạng P2P — đây là điều kiện thực tế nhất để kiểm tra độ ổn định của hệ thống.
+
+Tính năng này tự động hóa toàn bộ quá trình: spawn nhiều peer cùng lúc, mỗi peer tự gửi tin nhắn ngẫu nhiên rồi tự rời mạng sau một khoảng thời gian, sau đó một peer mới được tạo ra thay thế liên tục.
+
+---
+
+### 🔧 Yêu cầu trước khi chạy
+
+- Đã cài **Node.js** v18+ và chạy `npm install` trong thư mục `Code`
+- Đang ở thư mục `Code` trong terminal
+
+---
+
+### ▶️ Cách chạy đơn giản nhất
+
+Mở **PowerShell** tại thư mục `Code` và chạy lệnh sau:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start-churn.ps1
+```
+
+Lệnh này tự động làm 2 việc:
+1. Mở một cửa sổ mới chạy **Bootstrap Server** (máy chủ trung gian)
+2. Chạy **Churn Controller** ngay trong terminal hiện tại — spawn 5 peer đồng thời, chạy trong 120 giây rồi tự dừng và in báo cáo
+
+> Không cần làm gì thêm, chỉ cần ngồi quan sát log chạy.
+
+---
+
+### 📋 Các kịch bản test
+
+**Test nhanh — xem kết quả trong 1 phút:**
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start-churn.ps1 -Peers 3 -Duration 60
+```
+
+**Test mặc định — 5 peer, 2 phút:**
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start-churn.ps1
+```
+
+**Test tải cao — 8 peer, 3 phút:**
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start-churn.ps1 -Peers 8 -Duration 180
+```
+
+**Test churn cực nhanh — peer sống rất ngắn (10–20s), kiểm tra phát hiện disconnect:**
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start-churn.ps1 -Peers 5 -Duration 120 -Min 10 -Max 20
+```
+
+**Nếu Bootstrap Server đã đang chạy sẵn (không muốn mở thêm cửa sổ):**
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start-churn.ps1 -SkipServer
+```
+
+---
+
+### 👀 Đọc hiểu output khi chạy
+
+Khi chạy, terminal sẽ hiện log liên tục từ tất cả các peer. Dưới đây là giải thích các dòng log quan trọng:
+
+```
+[Controller] ⬆️  Spawn peer #0 (PID: 1234)     ← Peer mới vừa được tạo ra
+[Churn #0] ✅ "churn_0_abc" đã tham gia mạng   ← Peer đã kết nối thành công
+[Churn #0] 🔍 Phát hiện peer: churn_1_xyz       ← Peer tìm thấy người khác
+[Churn #1] ✉️  DM tới churn_0_abc: ACK nhận được ← Gửi tin nhắn thành công
+[Churn #2] ⚠️  DM tới churn_1_xyz: Thất bại     ← Peer kia đã offline trước khi nhận
+[Churn #0] 🛑 "churn_0_abc" rời mạng sau 23.4s  ← Peer tự tắt đúng kế hoạch
+[Churn #0] 📊 Gửi=3 | ACK_OK=2 | ACK_FAIL=1    ← Thống kê của peer đó
+[Controller] ⬇️  Peer #0 rời mạng bình thường   ← Controller ghi nhận
+[Controller] ⬆️  Spawn peer #5 (PID: 5678)      ← Peer mới được tạo bù ngay
+```
+
+Cửa sổ **Bootstrap Server** sẽ hiện số peer online tăng giảm liên tục — đó là churn đang hoạt động đúng:
+```
+[SUCCESS] Node registered: churn_0_abc  →  Online peers: 1
+[SUCCESS] Node registered: churn_1_xyz  →  Online peers: 2
+[WARN] Node disconnected: churn_0_abc   →  Online peers: 1
+[SUCCESS] Node registered: churn_5_def  →  Online peers: 2
+```
+
+---
+
+### 📊 Đọc hiểu báo cáo cuối
+
+Sau khi hết thời gian (hoặc nhấn `Ctrl+C` để dừng sớm), Controller in báo cáo tổng kết:
+
+```
+╔══════════════════════════════════════════════════════╗
+║           📊 BÁO CÁO CHURN SIMULATION               ║
+╠══════════════════════════════════════════════════════╣
+║  Thời gian chạy        : 120.3s                      ║
+║  Tổng peer đã spawn    : 18                          ║
+║  Hoàn thành bình thường: 16                          ║
+║  Crash / lỗi           : 2 (11.1%)                  ║
+║  Peer đồng thời        : 5                           ║
+║  Lifetime range        : 15s – 40s                   ║
+╚══════════════════════════════════════════════════════╝
+```
+
+| Chỉ số | Ý nghĩa | Kết quả tốt |
+|---|---|---|
+| Tổng peer đã spawn | Tổng số peer được tạo ra trong suốt quá trình | Càng nhiều càng thấy rõ churn |
+| Hoàn thành bình thường | Peer tự tắt đúng kế hoạch, gửi LEAVE message | Tỉ lệ cao (> 80%) |
+| Crash / lỗi | Peer bị tắt đột ngột hoặc lỗi | < 15% là bình thường |
+
+> **Lưu ý:** Nếu bạn nhấn `Ctrl+C` để dừng sớm, các peer đang chạy dở sẽ bị tính vào "Crash" — đây là bình thường, không phải lỗi thực sự.
+
+---
+
+### ⏹️ Dừng simulation
+
+- **Tự động:** Simulation tự dừng sau khi hết thời gian (`-Duration`) và in báo cáo
+- **Thủ công:** Nhấn `Ctrl+C` trong terminal Controller → tự động dọn dẹp và in báo cáo
