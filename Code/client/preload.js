@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('p2pAPI', {
     getBootstrapStatus: () => ipcRenderer.invoke('get-bootstrap-status'),
     getRoomMembers: (roomId) => ipcRenderer.invoke('get-room-members', roomId),
     disconnect: () => ipcRenderer.invoke('disconnect'),
+    uiReady: () => ipcRenderer.send('ui-ready'),
 
     // Nhận dữ liệu từ Main Process
     onPeerDiscovered: (callback) => ipcRenderer.on('peer-discovered', (event, data) => callback(data)),
