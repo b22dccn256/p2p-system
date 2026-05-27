@@ -1,141 +1,213 @@
-# 🌐 P2P Chat & Messenger System (Hybrid P2P)
+# 🌐 P2P Chat & Messenger System (E2EE + Store-and-Forward)
 
-Hệ thống Chat Ngang Hàng (Peer-to-Peer) phi tập trung được phát triển bằng **Node.js** và **Electron**, hỗ trợ mã hóa đầu cuối **E2EE (ECDH + AES-256-GCM)** và cơ chế định tuyến chịu lỗi **Store-and-Forward**.
+Hệ thống Chat Ngang Hàng (P2P) phi tập trung được phát triển bằng **Node.js** và **Electron**, hỗ trợ mã hóa đầu cuối **E2EE (ECDH + AES-256-GCM)** và cơ chế gửi tin nhắn ngoại tuyến **Store-and-Forward** cực kỳ thông minh.
 
----
-
-## 1. Tính năng chính
-* **Mã hóa đầu cuối (E2EE):** Tự động trao đổi khóa bằng thuật toán Elliptic Curve Diffie-Hellman (NIST P-256) và mã hóa gói tin bằng AES-256-GCM.
-* **Khám phá mạng tự động:** Tìm kiếm các Peer trong mạng LAN thông qua UDP Broadcast và đồng bộ danh bạ WAN qua Bootstrap Server.
-* **Định tuyến chịu lỗi (Store-and-Forward):** Khi một Peer mất mạng, tin nhắn sẽ được gửi nhờ vào các Peer láng giềng (Neighbors) lưu trữ tạm thời, và tự động chuyển tiếp ngay khi Peer đích trực tuyến trở lại.
-* **Trò chuyện đa dạng:** Hỗ trợ Direct Chat (1-1), Group Chat (Phòng kín đa hướng) và Global Broadcast (Phát thanh toàn mạng).
-* **Truyền tải tập tin:** Hỗ trợ gửi file/hình ảnh nội tuyến dạng Base64 qua luồng TCP, kế thừa toàn bộ tính năng mã hóa E2EE.
+Tài liệu này hướng dẫn chi tiết cách chạy thử nghiệm hệ thống cho cả 2 kịch bản: **Chạy thử nghiệm đa Node trên 1 máy tính (Isolated Profiles)** và **Chạy kết nối giữa nhiều máy tính thực tế (LAN / VPN)**.
 
 ---
 
-## 2. Kiến trúc (Architecture)
-Hệ thống áp dụng mô hình **Hybrid P2P**, phân tách rõ ràng hai luồng mạng:
-1. **Control Plane (Luồng Điều khiển):** Hoạt động tập trung tại Bootstrap Server. Máy chủ này chỉ làm nhiệm vụ duy nhất là "Danh bạ" (Registry), chứa IP/Port của các node. Không lưu trữ hay trung chuyển tin nhắn.
-2. **Data Plane (Luồng Dữ liệu):** Hoạt động phân quyền (Pure P2P). Các thiết bị kết nối TCP Socket Point-to-Point trực tiếp với nhau. Khi Bootstrap Server sập, Data Plane vẫn duy trì hoạt động bình thường giữa các node đã kết nối, loại bỏ hoàn toàn rủi ro Single Point of Failure cục bộ.
+## 🛠️ 1. Chuẩn bị môi trường (Chung cho các máy)
 
----
+Trước khi bắt đầu, hãy đảm bảo tất cả máy tính đã cài đặt **Node.js** (Khuyên dùng v18+).
 
-## 3. Stack công nghệ
-Hệ thống nói KHÔNG với các framework cồng kềnh, tối ưu hóa băng thông bằng các module lõi:
-* **Core/Backend:** Node.js thuần (sử dụng module `net` cho TCP, `dgram` cho UDP, `crypto` cho Mật mã học).
-* **Frontend/GUI:** Electron, Vanilla JavaScript, HTML5, CSS3.
-* **Giao tiếp liên tiến trình:** IPC (Inter-Process Communication) chuẩn của Electron.
-* **Tự động hóa:** PowerShell Scripts (.ps1).
-
----
-
-## 4. Cấu trúc thư mục
-```text
-📦 Code
- ┣ 📂 client            # Giao diện ứng dụng Desktop (HTML, CSS, JS)
- ┃ ┣ 📜 index.html      # Giao diện chính của ứng dụng
- ┃ ┣ 📜 main.js         # Tiến trình chính (Main Process) của Electron
- ┃ ┗ 📜 renderer.js     # Xử lý logic giao diện người dùng
- ┣ 📂 src               # Lõi hệ thống P2P (Core Backend)
- ┃ ┣ 📂 chat            # Nghiệp vụ trò chuyện (DirectChat, GroupChat, GlobalChat)
- ┃ ┣ 📂 config          # Tham số hệ thống (constants.js, logger.js)
- ┃ ┣ 📂 core            # Đối tượng lõi (Peer.js quản lý vòng đời mạng)
- ┃ ┣ 📂 discovery       # Lớp khám phá (BootstrapClient.js kết nối Registry)
- ┃ ┣ 📂 network         # Lớp mạng (TCPHandler, UDPHandler, MessageQueue)
- ┃ ┗ 📂 security        # Lớp an toàn thông tin (Crypto.js, KeyExchange.js)
- ┣ 📂 profiles          # Thư mục sinh tự động chứa cache & khóa mật mã riêng biệt
- ┣ 📜 start-lan-gui.ps1 # Script khởi động Client (GUI)
- ┣ 📜 start-lan-server.ps1 # Script khởi động Bootstrap Server
- ┗ 📜 start-churn.ps1   # Script chạy mô phỏng mạng tự động (Churn Test)
-```
-
----
-
-## 5. Cài đặt
-Yêu cầu hệ thống phải được cài đặt sẵn **Node.js (phiên bản v18 trở lên)**.
-1. Mở Terminal / PowerShell.
-2. Di chuyển vào thư mục chứa mã nguồn (`Code/`).
-3. Chạy lệnh cài đặt thư viện phụ thuộc:
+Mở Terminal tại thư mục `Code` của dự án và cài đặt các gói phụ thuộc:
 ```powershell
 npm install
 ```
 
 ---
 
-## 6. Chạy hệ thống
-*(Lưu ý: Thêm tiền tố `powershell -ExecutionPolicy Bypass -File` trước các lệnh nếu Windows chặn script).*
+## 💻 2. KỊCH BẢN 1: Kiểm thử nhanh trên CÙNG MỘT MÁY TÍNH
+> [!NOTE]
+> Hệ thống đã được nâng cấp cơ chế **Cô lập Profile**. Mỗi profile sẽ tự động sử dụng một thư mục Cache Electron riêng biệt (tránh hoàn toàn lỗi tranh chấp `Access is denied`) và tự lưu trữ khóa mật mã E2EE để không bị mất khi bật tắt.
 
-**Bước 1: Bật Máy chủ danh bạ (Bootstrap Server)**
+Bạn có thể giả lập 3 người dùng khác nhau (NodeA, NodeB, NodeC) trò chuyện với nhau ngay trên màn hình máy tính của mình.
+
+### Bước 1: Khởi động Bootstrap Server (Server danh bạ)
+Mở một cửa sổ PowerShell mới và chạy:
 ```powershell
-.\start-lan-server.ps1
+powershell -ExecutionPolicy Bypass -File .\start-lan-server.ps1
 ```
-**Bước 2: Bật Ứng dụng Client (Node A, B...)**
-Mở các Terminal mới và cấp phát profile độc lập để tránh xung đột Cache:
+*(Cửa sổ này đóng vai trò máy chủ trung gian mồi, hãy để nguyên và không tắt đi).*
+
+### Bước 2: Khởi động các Node người dùng riêng biệt
+Mở tiếp 3 cửa sổ PowerShell khác và chạy lần lượt 3 lệnh sau để khởi động 3 giao diện Chat độc lập:
+
+* **Mở Node A (Người dùng A):**
+  ```powershell
+  powershell -ExecutionPolicy Bypass -File .\start-lan-gui.ps1 -BootstrapIp 127.0.0.1 -Profile NodeA
+  ```
+* **Mở Node B (Người dùng B):**
+  ```powershell
+  powershell -ExecutionPolicy Bypass -File .\start-lan-gui.ps1 -BootstrapIp 127.0.0.1 -Profile NodeB
+  ```
+* **Mở Node C (Người dùng C - Làm trung gian chuyển tiếp):**
+  ```powershell
+  powershell -ExecutionPolicy Bypass -File .\start-lan-gui.ps1 -BootstrapIp 127.0.0.1 -Profile NodeC
+  ```
+
+---
+
+## 📶 3. KỊCH BẢN 2: Triển khai trên NHIỀU MÁY TÍNH (Mạng LAN / Radmin VPN)
+
+Khi muốn kết nối các máy tính khác nhau (trong cùng mạng WiFi hoặc qua mạng ảo Radmin VPN):
+
+### Máy X (Máy chủ mạng):
+1. Bật Bootstrap Server:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\start-lan-server.ps1
+   ```
+2. Lấy **Địa chỉ IP mạng** của Máy X (Ví dụ trong LAN là `192.168.1.15`, hoặc IP Radmin VPN là `26.126.65.246`).
+3. Mở GUI trên Máy X trỏ về chính mình:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\start-lan-gui.ps1 -BootstrapIp 127.0.0.1 -Profile NodeX
+   ```
+
+### Các Máy Khác (Máy A, B, C...):
+Mở PowerShell tại thư mục `Code` của dự án và chạy GUI, trỏ tham số `-BootstrapIp` về **IP của Máy X**:
 ```powershell
-.\start-lan-gui.ps1 -BootstrapIp 127.0.0.1 -Profile NodeA
-.\start-lan-gui.ps1 -BootstrapIp 127.0.0.1 -Profile NodeB
+powershell -ExecutionPolicy Bypass -File .\start-lan-gui.ps1 -BootstrapIp 26.126.65.246 -Profile NodeA
 ```
-*(Thay `127.0.0.1` bằng IP thực tế của máy chủ nếu chạy trên nhiều máy tính/LAN/VPN).*
+*(Thay thế `26.126.65.246` bằng IP thực tế của Máy X).*
 
 ---
 
-## 7. Sử dụng Peer GUI
-Giao diện ứng dụng tuân thủ triết lý tối giản (Minimalism) với 3 khu vực:
-* **Sidebar (Thanh điều hướng):** Hiển thị định danh (Peer ID) của bạn, danh sách các Peer đang trực tuyến và các Phòng Chat (Rooms).
-* **Main Chat (Khu vực tương tác):** Nơi gửi văn bản, đính kèm file ảnh. Các tin nhắn E2EE sẽ có nhãn `E2EE Secured`. Bạn có thể bấm vào chữ **"Xem Cipher"** để trích xuất cấu trúc dữ liệu nhị phân AES-256-GCM thực tế đang truyền qua mạng.
-* **Network Status Bar:** Nằm ở góc dưới cùng, theo dõi trạng thái kết nối tới Bootstrap Server theo thời gian thực.
+## 🧪 4. Quy trình Test Đồ Án ấn tượng (Kiểm thử Store-and-Forward)
+
+Để biểu diễn cơ chế **Gửi tin nhắn ngoại tuyến qua nút trung gian (Store-and-Forward)** kết hợp **Mã hóa E2EE**:
+
+1. **Khởi động:** Bật cả 3 Node (NodeA, NodeB, NodeC) online. Cả 3 sẽ tự động bắt tay E2EE và lưu khóa của nhau vào tệp cấu hình profile.
+2. **Node B Offline:** Tắt cửa sổ Node B đi (Node B rời mạng). Đợi 10 giây để hệ thống nhận diện Node B offline.
+3. **Gửi tin nhắn:** Dùng **Node A** gửi tin nhắn riêng cho **Node B**. 
+   - Vì Node B đang offline, Node A sẽ tự động gửi gói tin đã mã hóa E2EE nhờ **Node C** giữ hộ.
+   - Node C sẽ log dòng chữ: `[Store-and-Forward] Đã lưu hộ tin nhắn cho peer_vhuo. Sẽ chuyển tiếp khi họ online.`
+4. **Node B Online lại:** Bật lại Node B (`-Profile NodeB`).
+5. **Bùm!** Node C lập tức tự động bàn giao gói tin. Node B nhận lại tin nhắn, tự động sử dụng khóa mật mã cũ đã lưu để giải mã hoàn hảo và hiển thị nội dung trực tiếp trên giao diện đồ họa (UI)!
 
 ---
 
-## 8. Kịch bản demo (Store-and-Forward)
-Để kiểm chứng tính năng chịu lỗi của mạng phân tán:
-1. Mở 3 Node (A, B, C) cho chúng tự trao đổi khóa ECDH.
-2. Tắt nóng Node B. Đợi 10s để hệ thống xác nhận Timeout.
-3. Dùng Node A gửi tin nhắn cho Node B. 
-4. Console của Node C sẽ hiện log: `[Store-and-Forward] Đã lưu hộ gói tin...`
-5. Khởi động lại Node B. Ngay lập tức, Node C sẽ bàn giao gói tin trả về cho Node B, Node B tự động giải mã và hiển thị lên giao diện.
+## 🛡️ Khắc phục sự cố nhanh (Troubleshooting)
+
+> [!WARNING]
+> **Lỗi ExecutionPolicy trên Windows:**
+> Nếu PowerShell báo lỗi script bị chặn không cho chạy (do chính sách bảo mật của Windows), hãy chắc chắn rằng bạn đã thêm tiền tố `powershell -ExecutionPolicy Bypass -File` trước đường dẫn script như hướng dẫn phía trên.
 
 ---
 
-## 9. Giao thức TCP
-Hệ thống không dùng HTTP. Giao tiếp mạng sử dụng Socket TCP thuần túy với chuẩn **JSON-over-TCP** chống phân mảnh bằng ký tự ngắt dòng `\n` (Newline-delimited).
-Cấu trúc cơ bản của một gói tin:
-```json
-{
-  "type": "DIRECT_CHAT",
-  "from": "peer_abc",
-  "to": "peer_xyz",
-  "seq": 12,
-  "payload": {
-    "encrypted": "U2FsdGVkX1+...dữ_liệu_đã_mã_hóa_Base64",
-    "iv": "..."
-  }
-}
-```
+## 🌀 5. Mô phỏng Churn (Peer tham gia và rời mạng liên tục)
+
+**Churn** là hiện tượng các peer liên tục tham gia và rời khỏi mạng P2P — đây là điều kiện thực tế nhất để kiểm tra độ ổn định của hệ thống.
+
+Tính năng này tự động hóa toàn bộ quá trình: spawn nhiều peer cùng lúc, mỗi peer tự gửi tin nhắn ngẫu nhiên rồi tự rời mạng sau một khoảng thời gian, sau đó một peer mới được tạo ra thay thế liên tục.
 
 ---
 
-## 10. Message status (Trạng thái tin nhắn)
-Hệ thống đảm bảo tính toàn vẹn thông điệp thông qua cơ chế ARQ (Automatic Repeat reQuest):
-* Mỗi gói tin gửi đi được gán một `seq` (Sequence Number).
-* Bên nhận bóc tách thành công sẽ trả về gói tin `ACK`.
-* **Retry Logic:** Nếu quá 5 giây (ACK_TIMEOUT) không nhận được ACK, `MessageQueue` sẽ tự động gửi lại tối đa 3 lần (MAX_RETRIES). Nếu vẫn thất bại, kích hoạt Store-and-Forward.
+### 🔧 Yêu cầu trước khi chạy
+
+- Đã cài **Node.js** v18+ và chạy `npm install` trong thư mục `Code`
+- Đang ở thư mục `Code` trong terminal
 
 ---
 
-## 11. Kiểm thử (Churn Simulation)
-Sử dụng công cụ Churn Controller đi kèm để kiểm chứng sức chịu tải và cơ chế dọn dẹp bộ nhớ của hệ thống:
+### ▶️ Cách chạy đơn giản nhất
+
+Mở **PowerShell** tại thư mục `Code` và chạy lệnh sau:
+
 ```powershell
-.\start-churn.ps1 -Peers 22 -Duration 120
+powershell -ExecutionPolicy Bypass -File .\start-churn.ps1
 ```
-Lệnh trên sẽ tự động sinh (spawn) 22 Peer ảo. Các Peer sẽ liên tục kết nối, gửi tin nhắn rác, tự động ngắt mạng đột ngột (giả lập sập nguồn) để xem hệ thống có bị Crash hay không. Kết thúc mô phỏng, bảng báo cáo phần trăm lỗi sẽ được in ra Terminal.
+
+Lệnh này tự động làm 2 việc:
+1. Mở một cửa sổ mới chạy **Bootstrap Server** (máy chủ trung gian)
+2. Chạy **Churn Controller** ngay trong terminal hiện tại — spawn 5 peer đồng thời, chạy trong 120 giây rồi tự dừng và in báo cáo
+
+> Không cần làm gì thêm, chỉ cần ngồi quan sát log chạy.
 
 ---
 
-## 12. Hàm lõi của ứng dụng
-Dưới đây là các hàm lõi chi phối toàn bộ vòng đời ứng dụng:
-* `Peer.sendToPeer(targetId, message)`: Nỗ lực gửi gói tin trực tiếp qua TCP Socket Point-to-Point.
-* `MessageQueue.sendWithAck()`: Gói bọc (Wrapper) bên ngoài hàm send, bổ sung cơ chế lưu bộ đệm, tính giờ Timeout và tự động Retry.
-* `KeyExchange.computeSecret(publicKey)`: Xử lý khóa công khai của đối tác để dẫn xuất ra Shared Secret thông qua thuật toán ECDH.
-* `Crypto.encrypt(text, sharedSecret)`: Hàm băm khóa bằng SHA-256 và mã hóa văn bản gốc bằng thuật toán AES-256-GCM.
-* `BootstrapClient.connect()`: Quản lý luồng tín hiệu (Heartbeat) và tự động nhận diện danh bạ mạng ngay cả khi thay đổi địa chỉ IP.
+### 📋 Các kịch bản test
+
+**Test nhanh — xem kết quả trong 1 phút:**
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start-churn.ps1 -Peers 3 -Duration 60
+```
+
+**Test mặc định — 5 peer, 2 phút:**
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start-churn.ps1
+```
+
+**Test tải cao — 8 peer, 3 phút:**
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start-churn.ps1 -Peers 8 -Duration 180
+```
+
+**Test churn cực nhanh — peer sống rất ngắn (10–20s), kiểm tra phát hiện disconnect:**
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start-churn.ps1 -Peers 5 -Duration 120 -Min 10 -Max 20
+```
+
+**Nếu Bootstrap Server đã đang chạy sẵn (không muốn mở thêm cửa sổ):**
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start-churn.ps1 -SkipServer
+```
+
+---
+
+### 👀 Đọc hiểu output khi chạy
+
+Khi chạy, terminal sẽ hiện log liên tục từ tất cả các peer. Dưới đây là giải thích các dòng log quan trọng:
+
+```
+[Controller] ⬆️  Spawn peer #0 (PID: 1234)     ← Peer mới vừa được tạo ra
+[Churn #0] ✅ "churn_0_abc" đã tham gia mạng   ← Peer đã kết nối thành công
+[Churn #0] 🔍 Phát hiện peer: churn_1_xyz       ← Peer tìm thấy người khác
+[Churn #1] ✉️  DM tới churn_0_abc: ACK nhận được ← Gửi tin nhắn thành công
+[Churn #2] ⚠️  DM tới churn_1_xyz: Thất bại     ← Peer kia đã offline trước khi nhận
+[Churn #0] 🛑 "churn_0_abc" rời mạng sau 23.4s  ← Peer tự tắt đúng kế hoạch
+[Churn #0] 📊 Gửi=3 | ACK_OK=2 | ACK_FAIL=1    ← Thống kê của peer đó
+[Controller] ⬇️  Peer #0 rời mạng bình thường   ← Controller ghi nhận
+[Controller] ⬆️  Spawn peer #5 (PID: 5678)      ← Peer mới được tạo bù ngay
+```
+
+Cửa sổ **Bootstrap Server** sẽ hiện số peer online tăng giảm liên tục — đó là churn đang hoạt động đúng:
+```
+[SUCCESS] Node registered: churn_0_abc  →  Online peers: 1
+[SUCCESS] Node registered: churn_1_xyz  →  Online peers: 2
+[WARN] Node disconnected: churn_0_abc   →  Online peers: 1
+[SUCCESS] Node registered: churn_5_def  →  Online peers: 2
+```
+
+---
+
+### 📊 Đọc hiểu báo cáo cuối
+
+Sau khi hết thời gian (hoặc nhấn `Ctrl+C` để dừng sớm), Controller in báo cáo tổng kết:
+
+```
+╔══════════════════════════════════════════════════════╗
+║           📊 BÁO CÁO CHURN SIMULATION               ║
+╠══════════════════════════════════════════════════════╣
+║  Thời gian chạy        : 120.3s                      ║
+║  Tổng peer đã spawn    : 18                          ║
+║  Hoàn thành bình thường: 16                          ║
+║  Crash / lỗi           : 2 (11.1%)                  ║
+║  Peer đồng thời        : 5                           ║
+║  Lifetime range        : 15s – 40s                   ║
+╚══════════════════════════════════════════════════════╝
+```
+
+| Chỉ số | Ý nghĩa | Kết quả tốt |
+|---|---|---|
+| Tổng peer đã spawn | Tổng số peer được tạo ra trong suốt quá trình | Càng nhiều càng thấy rõ churn |
+| Hoàn thành bình thường | Peer tự tắt đúng kế hoạch, gửi LEAVE message | Tỉ lệ cao (> 80%) |
+| Crash / lỗi | Peer bị tắt đột ngột hoặc lỗi | < 15% là bình thường |
+
+> **Lưu ý:** Nếu bạn nhấn `Ctrl+C` để dừng sớm, các peer đang chạy dở sẽ bị tính vào "Crash" — đây là bình thường, không phải lỗi thực sự.
+
+---
+
+### ⏹️ Dừng simulation
+
+- **Tự động:** Simulation tự dừng sau khi hết thời gian (`-Duration`) và in báo cáo
+- **Thủ công:** Nhấn `Ctrl+C` trong terminal Controller → tự động dọn dẹp và in báo cáo
