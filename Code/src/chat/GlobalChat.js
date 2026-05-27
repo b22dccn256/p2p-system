@@ -8,11 +8,11 @@ class GlobalChat {
 
     // Broadcast tin nhắn tới tất cả những người đang kết nối (LAN & WAN)
     broadcast(text) {
-        // Kiểm tra bootstrap server trước khi gửi
-        if (!this.peer.isBootstrapAlive) {
-            logger.error('⛔ Không thể broadcast: Bootstrap server đang offline.');
-            return false;
-        }
+        // [ĐÃ SỬA CHUẨN P2P] Không kiểm tra bootstrap server trước khi gửi
+        // if (!this.peer.isBootstrapAlive) {
+        //     logger.error('⛔ Không thể broadcast: Bootstrap server đang offline.');
+        //     return false;
+        // }
 
         const message = {
             type: 'GLOBAL_CHAT',

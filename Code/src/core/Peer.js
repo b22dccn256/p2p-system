@@ -74,15 +74,15 @@ class Peer extends EventEmitter {
     }
 
     sendToPeer(targetPeerId, message) {
-        // Chặn gửi tin nhắn khi bootstrap server offline
-        if (!this.isBootstrapAlive) {
-            logger.warn(`⛔ Không thể gửi tin nhắn tới ${targetPeerId}: Bootstrap server offline.`);
-            this.emit('send-error', {
-                target: targetPeerId,
-                reason: 'Bootstrap server đang offline. Không thể gửi tin nhắn.'
-            });
-            return false;
-        }
+        // [ĐÃ SỬA CHUẨN P2P] Chặn gửi tin nhắn khi bootstrap server offline
+        // if (!this.isBootstrapAlive) {
+        //     logger.warn(`⛔ Không thể gửi tin nhắn tới ${targetPeerId}: Bootstrap server offline.`);
+        //     this.emit('send-error', {
+        //         target: targetPeerId,
+        //         reason: 'Bootstrap server đang offline. Không thể gửi tin nhắn.'
+        //     });
+        //     return false;
+        // }
 
         const outgoing = this.prepareOutgoingMessage(message);
         const socket = this.tcpHandler.activeConnections.get(targetPeerId);
@@ -124,15 +124,15 @@ class Peer extends EventEmitter {
     }
 
     broadcastToNetwork(message) {
-        // Chặn broadcast khi bootstrap server offline
-        if (!this.isBootstrapAlive) {
-            logger.warn(`⛔ Không thể broadcast tin nhắn: Bootstrap server offline.`);
-            this.emit('send-error', {
-                target: 'broadcast',
-                reason: 'Bootstrap server đang offline. Không thể gửi tin nhắn.'
-            });
-            return false;
-        }
+        // [ĐÃ SỬA CHUẨN P2P] Chặn broadcast khi bootstrap server offline
+        // if (!this.isBootstrapAlive) {
+        //     logger.warn(`⛔ Không thể broadcast tin nhắn: Bootstrap server offline.`);
+        //     this.emit('send-error', {
+        //         target: 'broadcast',
+        //         reason: 'Bootstrap server đang offline. Không thể gửi tin nhắn.'
+        //     });
+        //     return false;
+        // }
 
         const outgoing = this.prepareOutgoingMessage(message);
         const msgStr = JSON.stringify(outgoing) + '\n';

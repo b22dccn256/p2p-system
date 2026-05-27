@@ -8,11 +8,11 @@ class DirectChat {
 
     // Target 1: Gửi tin nhắn trực tiếp giữa 2 peer (Sử dụng Message Queue)
     async send(targetPeerId, text) {
-        // Kiểm tra bootstrap server trước khi gửi
-        if (!this.peer.isBootstrapAlive) {
-            logger.error('⛔ Không thể gửi tin nhắn: Bootstrap server đang offline.');
-            return false;
-        }
+        // [ĐÃ SỬA CHUẨN P2P] Không kiểm tra bootstrap server trước khi gửi
+        // if (!this.peer.isBootstrapAlive) {
+        //     logger.error('⛔ Không thể gửi tin nhắn: Bootstrap server đang offline.');
+        //     return false;
+        // }
 
         if (!this.peer.keyExchange.hasKey(targetPeerId)) {
             logger.warn(`🛡️ Chưa có khoá E2EE với ${targetPeerId}. Đang tự động trao đổi khoá...`);

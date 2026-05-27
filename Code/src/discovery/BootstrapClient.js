@@ -110,11 +110,11 @@ class BootstrapClient {
         this.updateStatus(false);
         logger.warn('Bootstrap relay disconnected. Reconnecting in 3s...');
 
-        // Khi bootstrap server mất kết nối, đóng tất cả kết nối P2P
-        // để peer không thể tiếp tục chat khi server offline
-        if (wasConnected) {
-            this._disconnectAllPeers();
-        }
+        // [ĐÃ SỬA CHUẨN P2P] Không đóng kết nối P2P khi mất Bootstrap Server.
+        // Các Peer đã kết nối vẫn có thể chat trực tiếp với nhau.
+        // if (wasConnected) {
+        //     this._disconnectAllPeers();
+        // }
 
         this.reconnectTimer = setTimeout(() => {
             this.reconnectTimer = null;
